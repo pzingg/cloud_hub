@@ -6,6 +6,7 @@ defmodule WebSubHub.Updates do
 
   import Ecto.Query, warn: false
   alias WebSubHub.Repo
+  alias WebSubHub.HTTPClient
 
   alias WebSubHub.Subscriptions
   alias WebSubHub.Subscriptions.Topic
@@ -17,7 +18,7 @@ defmodule WebSubHub.Updates do
     case Subscriptions.get_topic_by_url(topic_url) do
       # Get all active subscriptions and publish the update to them
       %Subscriptions.Topic{} = topic ->
-        case Tesla.get(topic.url) do
+        case HTTPClient.get(topic.url) do
           {:ok, %Tesla.Env{status: code, body: body, headers: headers}}
           when code >= 200 and code < 300 ->
             {:ok, update} = create_update(topic, body, headers)
@@ -32,6 +33,7 @@ defmodule WebSubHub.Updates do
                 callback_url: subscription.callback_url,
                 update_id: update.id,
                 subscription_id: subscription.id,
+                subscription_api: subscription.api,
                 secret: subscription.secret
               })
               |> Oban.insert()
@@ -41,22 +43,22 @@ defmodule WebSubHub.Updates do
             {:ok, update}
 
           _ ->
-            Logger.info("Updates.publish: Unsuccessful response code for #{topic.url}")
+            Logger.error("Updates.publish: Unsuccessful response code for #{topic.url}")
             {:error, "Publish URL did not return a successful status code."}
         end
 
       nil ->
         # Nothing found
-        Logger.info("Updates.publish: Did not find topic for #{topic_url}")
+        Logger.error("Updates.publish: Did not find topic for #{topic_url}")
         {:error, "Topic not found for topic URL."}
 
       err ->
-        Logger.info("Updates.publish: Unknown error #{inspect(err)}")
+        Logger.error("Updates.publish: Unknown error #{inspect(err)}")
         {:error, "Unknown error."}
     end
   end
 
-  def create_update(%Topic{} = topic, body, headers) do
+  def create_update(%Topic{} = topic, body, headers) when is_binary(body) do
     %Update{
       topic: topic
     }
@@ -99,16 +101,7 @@ defmodule WebSubHub.Updates do
   end
 
   defp get_content_type_header(headers) do
-    content_type? = &(String.downcase(&1) == "content-type")
-    found = for {k, v} <- headers, content_type?.(k), do: v
-
-    case found do
-      [content_type] ->
-        content_type
-
-      _ ->
-        "application/octet-stream"
-    end
+    HTTPClient.get_header(headers, "content-type", "application/octet-stream")
   end
 
   defp get_link_headers(headers) do

@@ -16,7 +16,7 @@ defmodule WebSubHubWeb.HubController do
     lease_seconds = Map.get(params, "hub.lease_seconds", 864_000)
     secret = Map.get(params, "hub.secret")
 
-    Subscriptions.subscribe(topic, callback, lease_seconds, secret)
+    Subscriptions.subscribe(:websub, topic, callback, lease_seconds, secret: secret)
     |> handle_response(conn)
   end
 
@@ -53,13 +53,13 @@ defmodule WebSubHubWeb.HubController do
   end
 
   defp handle_response({:error, reason}, conn) when is_atom(reason) do
-    [status_code, message] =
+    {status_code, message} =
       case reason do
-        :failed_challenge_body -> [403, "failed_challenge_body"]
-        :failed_404_response -> [403, "failed_404_response"]
-        :failed_unknown_response -> [403, "failed_unknown_response"]
-        :failed_unknown_error -> [500, "failed_unknown_error"]
-        _ -> [500, "failed_unknown_reason"]
+        :failed_challenge_body -> {403, "failed_challenge_body"}
+        :failed_404_response -> {403, "failed_404_response"}
+        :failed_unknown_response -> {403, "failed_unknown_response"}
+        :failed_unknown_error -> {500, "failed_unknown_error"}
+        _ -> {500, "failed_unknown_reason"}
       end
 
     conn

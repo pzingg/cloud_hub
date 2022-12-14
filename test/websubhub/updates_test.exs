@@ -32,7 +32,7 @@ defmodule WebSubHub.UpdatesTest do
 
     #     topic_url = "https://topic/123"
     #     callback_url = subscriber_url <> "/cb"
-    #     {:ok, _} = Subscriptions.subscribe(topic_url, callback_url)
+    #     {:ok, _} = Subscriptions.subscribe(:websub, topic_url, callback_url)
 
     #     {:ok, update} = Updates.publish(topic_url)
 

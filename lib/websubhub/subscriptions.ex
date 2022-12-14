@@ -6,46 +6,43 @@ defmodule WebSubHub.Subscriptions do
 
   import Ecto.Query, warn: false
   alias WebSubHub.Repo
+  alias WebSubHub.HTTPClient
 
   alias WebSubHub.Subscriptions.Topic
   alias WebSubHub.Subscriptions.Subscription
 
-  def subscribe(topic_url, callback_url, lease_seconds \\ 864_000, secret \\ nil) do
+  def subscribe(api, topic_url, callback_url, lease_seconds \\ 864_000, opts \\ []) do
+    secret = Keyword.get(opts, :secret)
+
     with {:ok, _} <- validate_url(topic_url),
          {:ok, callback_uri} <- validate_url(callback_url),
          {:ok, topic} <- find_or_create_topic(topic_url),
-         {:ok, :success} <- validate_subscription(topic, callback_uri, lease_seconds) do
+         {:ok, :success} <-
+           validate_subscription(api, topic, callback_uri, lease_seconds, opts) do
       case Repo.get_by(Subscription, topic_id: topic.id, callback_url: callback_url) do
         %Subscription{} = subscription ->
           lease_seconds = convert_lease_seconds(lease_seconds)
           expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
 
-          Logger.info("Subscriptions.subscribe: Updating #{topic_url} for #{callback_url}")
-
           subscription
           |> Subscription.changeset(%{
+            api: api,
             secret: secret,
+            diff_domain: Keyword.get(opts, :diff_domain, false),
             expires_at: expires_at,
             lease_seconds: lease_seconds
           })
           |> Repo.update()
 
         nil ->
-          create_subscription(topic, callback_uri, lease_seconds, secret)
+          create_subscription(api, topic, callback_uri, lease_seconds, opts)
       end
     else
-      {:subscribe_validation_error, some_error} ->
-        # If (and when) the subscription is denied, the hub MUST inform the subscriber by sending an HTTP [RFC7231] (or HTTPS [RFC2818]) GET request to the subscriber's callback URL as given in the subscription request. This request has the following query string arguments appended (format described in Section 4 of [URL]):
-        {:ok, callback_uri} = validate_url(callback_url)
-
-        reason = Atom.to_string(some_error)
-        deny_subscription(callback_uri, topic_url, reason)
-
-        Logger.info(
-          "Subscriptions.subscribe: Failed validation for #{callback_url} with #{reason}"
-        )
-
-        {:error, some_error}
+      {:subscribe_validation_error, reason} ->
+        # WebSub must notify callback on failure. Ignore return value.
+        # RSSCloud just returns an error to the caller.
+        _ = deny_subscription(api, callback_url, topic_url, reason)
+        {:error, reason}
 
       _ ->
         {:error, "something"}
@@ -59,8 +56,6 @@ defmodule WebSubHub.Subscriptions do
          %Subscription{} = subscription <-
            Repo.get_by(Subscription, topic_id: topic.id, callback_url: callback_url) do
       validate_unsubscribe(topic, callback_uri)
-
-      Logger.info("Subscriptions.unsubscribe: Updating #{topic_url} for #{callback_url}")
 
       subscription
       |> Subscription.changeset(%{
@@ -105,12 +100,15 @@ defmodule WebSubHub.Subscriptions do
   end
 
   @doc """
-  Validate a subscription by sending a HTTP GET to the subscriber's callback_url.
+  Validate a WebSub subscription by sending a HTTP GET to the subscriber's callback_url.
+  Validate an RSSCloud subscription by sending a HTTP GET or POST to the subscriber's callback_url.
   """
   def validate_subscription(
+        :websub,
         %Topic{} = topic,
         %URI{} = callback_uri,
-        lease_seconds
+        lease_seconds,
+        _opts
       ) do
     challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
 
@@ -123,7 +121,7 @@ defmodule WebSubHub.Subscriptions do
 
     callback_url = append_our_params(callback_uri, params)
 
-    case Tesla.get(callback_url) do
+    case HTTPClient.get(callback_url) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body matches our challenge
         if challenge != String.trim(body) do
@@ -132,20 +130,79 @@ defmodule WebSubHub.Subscriptions do
           {:ok, :success}
         end
 
-      {:ok, %Tesla.Env{status: 404}} ->
-        {:subscribe_validation_error, :failed_404_response}
-
-      {:ok, %Tesla.Env{}} ->
-        {:subscribe_validation_error, :failed_unknown_response}
-
-      {:error, reason} ->
-        Logger.error("Got unexpected error from validate subscription call: #{reason}")
-        {:subscribe_validation_error, :failed_unknown_error}
+      other ->
+        handle_validation_errors(other)
     end
   end
 
+  def validate_subscription(
+        :rsscloud,
+        %Topic{} = topic,
+        %URI{} = callback_uri,
+        _lease_seconds,
+        opts
+      ) do
+    diff_domain = Keyword.get(opts, :diff_domain, false)
+    validate_rsscloud_subscription(topic, callback_uri, diff_domain)
+  end
+
+  def validate_rsscloud_subscription(topic, callback_uri, true) do
+    challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
+
+    params = %{
+      "url" => topic.url,
+      "challenge" => challenge
+    }
+
+    callback_url = append_our_params(callback_uri, params)
+
+    case HTTPClient.get(callback_url) do
+      {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
+        # Ensure the response body contains our challenge
+        if String.contains?(body, challenge) do
+          {:ok, :success}
+        else
+          {:subscribe_validation_error, :failed_challenge_body}
+        end
+
+      other ->
+        handle_validation_errors(other)
+    end
+  end
+
+  def validate_rsscloud_subscription(topic, callback_uri, false) do
+    callback_url = to_string(callback_uri)
+    # Either this, or use Tesla.Middleware.
+    body = %{url: topic.url}
+
+    case HTTPClient.post_form(callback_url, body) do
+      {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
+        {:ok, :success}
+
+      other ->
+        handle_validation_errors(other)
+    end
+  end
+
+  def handle_validation_errors({:ok, %Tesla.Env{status: 404}}) do
+    {:subscribe_validation_error, :failed_404_response}
+  end
+
+  def handle_validation_errors({:ok, %Tesla.Env{}}) do
+    {:subscribe_validation_error, :failed_unknown_response}
+  end
+
+  def handle_validation_errors({:error, :invalid_request}) do
+    {:subscribe_validation_error, :invalid_request}
+  end
+
+  def handle_validation_errors({:error, reason}) do
+    Logger.error("Got unexpected error from validate subscription call: #{reason}")
+    {:subscribe_validation_error, :failed_unknown_error}
+  end
+
   @doc """
-  Validate a unsubscription by sending a HTTP GET to the subscriber's callback_url.
+  Validate a WebSub unsubscription by sending a HTTP GET to the subscriber's callback_url.
   """
   def validate_unsubscribe(
         %Topic{} = topic,
@@ -161,7 +218,7 @@ defmodule WebSubHub.Subscriptions do
 
     callback_url = append_our_params(callback_uri, params)
 
-    case Tesla.get(callback_url) do
+    case HTTPClient.get(callback_url) do
       {:ok, %Tesla.Env{}} ->
         {:ok, :success}
 
@@ -171,7 +228,7 @@ defmodule WebSubHub.Subscriptions do
     end
   end
 
-  def create_subscription(%Topic{} = topic, %URI{} = callback_uri, lease_seconds, secret) do
+  def create_subscription(api, %Topic{} = topic, %URI{} = callback_uri, lease_seconds, opts) do
     lease_seconds = convert_lease_seconds(lease_seconds)
     expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
 
@@ -179,10 +236,12 @@ defmodule WebSubHub.Subscriptions do
       topic: topic
     }
     |> Subscription.changeset(%{
+      api: api,
       callback_url: to_string(callback_uri),
       lease_seconds: lease_seconds,
       expires_at: expires_at,
-      secret: secret
+      diff_domain: Keyword.get(opts, :diff_domain, false),
+      secret: Keyword.get(opts, :secret)
     })
     |> Repo.insert()
   end
@@ -193,24 +252,37 @@ defmodule WebSubHub.Subscriptions do
 
   defp convert_lease_seconds(seconds), do: seconds
 
-  def deny_subscription(%URI{} = callback_uri, topic_url, reason) do
-    params = %{
-      "hub.mode" => "denied",
-      "hub.topic" => topic_url,
-      "hub.reason" => reason
-    }
+  def deny_subscription(:websub, callback_url, topic_url, reason) do
+    # If (and when) the subscription is denied, the hub MUST inform the subscriber by sending an HTTP [RFC7231]
+    # (or HTTPS [RFC2818]) GET request to the subscriber's callback URL as given in the subscription request. This request has the following query string arguments appended (format described in Section 4 of [URL]):
+    with {:ok, callback_uri} <- validate_url(callback_url) do
+      params = %{
+        "hub.mode" => "denied",
+        "hub.topic" => topic_url,
+        "hub.reason" => reason_string(reason)
+      }
 
-    final_url = append_our_params(callback_uri, params)
+      final_url = append_our_params(callback_uri, params)
 
-    # We don't especially care about a response on this one
-    case Tesla.get(final_url) do
-      {:ok, %Tesla.Env{}} ->
-        {:ok, :success}
+      # We don't especially care about a response on this one
+      case HTTPClient.get(final_url) do
+        {:ok, %Tesla.Env{}} ->
+          :ok
 
-      {:error, _reason} ->
-        {:ok, :error}
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      {:error, reason} ->
+        {:error, reason}
     end
   end
+
+  def deny_subscription(:rsscloud, _callback_url, _topic_url, _reason), do: :ok
+
+  def reason_string(reason) when is_binary(reason), do: reason
+  def reason_string(reason) when is_atom(reason), do: Atom.to_string(reason)
+  def reason_string(reason), do: IO.inspect(reason)
 
   def list_active_topic_subscriptions(%Topic{} = topic) do
     now = NaiveDateTime.utc_now()

@@ -8,6 +8,8 @@ defmodule WebSubHub.Subscriptions.Subscription do
     field :lease_seconds, :float
     field :expires_at, :naive_datetime
     field :secret, :string
+    field :diff_domain, :boolean
+    field :api, Ecto.Enum, values: [:websub, :rsscloud]
 
     timestamps()
   end
@@ -15,8 +17,20 @@ defmodule WebSubHub.Subscriptions.Subscription do
   @doc false
   def changeset(subscription, attrs) do
     subscription
-    |> cast(attrs, [:callback_url, :lease_seconds, :expires_at, :secret])
+    |> cast(attrs, [:api, :callback_url, :lease_seconds, :expires_at, :secret, :diff_domain])
     |> validate_required([:callback_url, :lease_seconds, :expires_at])
+    |> validate_method()
     |> unique_constraint([:topic_id, :callback_url])
+  end
+
+  defp validate_method(changeset) do
+    api = get_field(changeset, :api)
+
+    case api do
+      :websub -> changeset
+      :rsscloud -> validate_required(changeset, :diff_domain)
+      nil -> add_error(changeset, :api, "is required")
+      other -> add_error(changeset, :api, "is invalid: #{other}")
+    end
   end
 end

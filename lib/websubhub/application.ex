@@ -18,6 +18,7 @@ defmodule WebSubHub.Application do
       WebSubHubWeb.Endpoint,
       # Start a worker by calling: WebSubHub.Worker.start_link(arg)
       # {WebSubHub.Worker, arg}
+      {Finch, name: MyFinch},
       {Oban, oban_config()}
     ]
 

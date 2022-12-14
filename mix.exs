@@ -51,6 +51,7 @@ defmodule WebSubHub.MixProject do
       {:gettext, "~> 0.18"},
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
+      {:finch, "~> 0.4"},
       {:tesla, "~> 1.4"},
       {:oban, "~> 2.10"},
       {:ecto_psql_extras, "~> 0.6"}

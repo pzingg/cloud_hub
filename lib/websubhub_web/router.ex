@@ -37,6 +37,13 @@ defmodule WebSubHubWeb.Router do
     post "/", HubController, :action
   end
 
+  scope "/rsscloud", WebSubHubWeb do
+    pipe_through :websub_hub
+
+    post "/ping", RSSCloudController, :ping
+    post "/pleaseNotify", RSSCloudController, :please_notify
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", WebSubHubWeb do
   #   pipe_through :api

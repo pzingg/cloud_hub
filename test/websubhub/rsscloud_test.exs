@@ -1,4 +1,4 @@
-defmodule WebSubHub.HubTest do
+defmodule WebSubHub.RSSCloudTest do
   use WebSubHub.DataCase
   use Oban.Testing, repo: WebSubHub.Repo
 
@@ -41,7 +41,7 @@ defmodule WebSubHub.HubTest do
     } do
       topic_url = publisher_url
       callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, update} = Updates.publish(topic_url)
 
@@ -50,7 +50,7 @@ defmodule WebSubHub.HubTest do
         args: %{
           update_id: update.id,
           subscription_id: subscription.id,
-          subscription_api: "websub",
+          subscription_api: "rsscloud",
           callback_url: callback_url,
           secret: nil
         }
@@ -62,7 +62,10 @@ defmodule WebSubHub.HubTest do
       assert hits(subscriber_pid) == 2
       {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
 
-      assert publish.body == @html_body
+      assert publish.body == "url=" <> URI.encode_www_form(topic_url)
+
+      assert HTTPClient.get_header(publish.headers, "content-type") ==
+               "application/x-www-form-urlencoded"
     end
 
     test "does not get publish if already unsubscribed", %{
@@ -73,7 +76,7 @@ defmodule WebSubHub.HubTest do
     } do
       topic_url = publisher_url
       callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, _} = Subscriptions.unsubscribe(topic_url, callback_url)
 
@@ -94,52 +97,6 @@ defmodule WebSubHub.HubTest do
 
       assert hits(publisher_pid) == 1
       assert hits(subscriber_pid) == 2
-    end
-  end
-
-  describe "101 - Subscriber includes a secret" do
-    @doc """
-    This subscriber will include the parameters hub.mode, hub.topic, hub.callback and hub.secret. The hub should deliver notifications with a signature computed using this secret.
-    """
-
-    setup [:setup_html_publisher, :setup_subscriber]
-
-    test "101 - Subscriber includes a secret", %{
-      subscriber_pid: subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
-      publisher_url: publisher_url
-    } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-
-      {:ok, subscription} =
-        Subscriptions.subscribe(:websub, topic_url, callback_url, 864_000, secret: "some_secret")
-
-      {:ok, update} = Updates.publish(topic_url)
-
-      assert_enqueued(
-        worker: WebSubHub.Jobs.DispatchPlainUpdate,
-        args: %{
-          update_id: update.id,
-          subscription_id: subscription.id,
-          subscription_api: "websub",
-          callback_url: callback_url,
-          secret: "some_secret"
-        }
-      )
-
-      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :updates)
-
-      assert hits(publisher_pid) == 1
-      assert hits(subscriber_pid) == 2
-
-      {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
-
-      assert publish.body == @html_body
-
-      assert HTTPClient.get_header(publish.headers, "x-hub-signature") ==
-               "sha256=9d63c6c06dca350aaa6955f9e4017b801fc56b4a904f2e4dab68652b6abfda4c"
     end
   end
 
@@ -178,7 +135,7 @@ defmodule WebSubHub.HubTest do
     } do
       topic_url = publisher_url
       callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, update} = Updates.publish(topic_url)
 
@@ -187,7 +144,7 @@ defmodule WebSubHub.HubTest do
         args: %{
           update_id: update.id,
           subscription_id: subscription.id,
-          subscription_api: "websub",
+          subscription_api: "rsscloud",
           callback_url: callback_url,
           secret: nil
         }
@@ -199,11 +156,10 @@ defmodule WebSubHub.HubTest do
       assert hits(subscriber_pid) == 2
       {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
 
-      assert publish.body == @text_body
-      assert HTTPClient.get_header(publish.headers, "content-type") == "text/plain"
+      assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTPClient.get_header(publish.headers, "link") ==
-               "<#{topic_url}>; rel=self, <https://websubhub.com/hub>; rel=hub"
+      assert HTTPClient.get_header(publish.headers, "content-type") ==
+               "application/x-www-form-urlencoded"
     end
   end
 
@@ -222,7 +178,7 @@ defmodule WebSubHub.HubTest do
     } do
       topic_url = publisher_url
       callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, update} = Updates.publish(topic_url)
 
@@ -231,7 +187,7 @@ defmodule WebSubHub.HubTest do
         args: %{
           update_id: update.id,
           subscription_id: subscription.id,
-          subscription_api: "websub",
+          subscription_api: "rsscloud",
           callback_url: callback_url,
           secret: nil
         }
@@ -243,11 +199,10 @@ defmodule WebSubHub.HubTest do
       assert hits(subscriber_pid) == 2
       {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
 
-      assert publish.body == @json_body
-      assert HTTPClient.get_header(publish.headers, "content-type") == "application/json"
+      assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTPClient.get_header(publish.headers, "link") ==
-               "<#{topic_url}>; rel=self, <https://websubhub.com/hub>; rel=hub"
+      assert HTTPClient.get_header(publish.headers, "content-type") ==
+               "application/x-www-form-urlencoded"
     end
   end
 
@@ -334,11 +289,8 @@ defmodule WebSubHub.HubTest do
 
     :ok =
       FakeServer.put_route(pid, callback_path, fn
-        %FakeServer.Request{method: "GET", query: %{"hub.challenge" => challenge}} ->
-          FakeServer.Response.ok(challenge, headers)
-
-        %FakeServer.Request{method: "POST"} ->
-          FakeServer.Response.ok("", headers)
+        %FakeServer.Request{} ->
+          FakeServer.Response.ok("ok", headers)
       end)
 
     [subscriber_pid: pid, subscriber_url: subscriber_url]
