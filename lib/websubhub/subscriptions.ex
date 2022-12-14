@@ -123,8 +123,8 @@ defmodule WebSubHub.Subscriptions do
 
     callback_url = append_our_params(callback_uri, params)
 
-    case HTTPoison.get(callback_url) do
-      {:ok, %HTTPoison.Response{status_code: code, body: body}} when code >= 200 and code < 300 ->
+    case Tesla.get(callback_url) do
+      {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body matches our challenge
         if challenge != String.trim(body) do
           {:subscribe_validation_error, :failed_challenge_body}
@@ -132,13 +132,13 @@ defmodule WebSubHub.Subscriptions do
           {:ok, :success}
         end
 
-      {:ok, %HTTPoison.Response{status_code: 404}} ->
+      {:ok, %Tesla.Env{status: 404}} ->
         {:subscribe_validation_error, :failed_404_response}
 
-      {:ok, %HTTPoison.Response{}} ->
+      {:ok, %Tesla.Env{}} ->
         {:subscribe_validation_error, :failed_unknown_response}
 
-      {:error, %HTTPoison.Error{reason: reason}} ->
+      {:error, reason} ->
         Logger.error("Got unexpected error from validate subscription call: #{reason}")
         {:subscribe_validation_error, :failed_unknown_error}
     end
@@ -161,11 +161,11 @@ defmodule WebSubHub.Subscriptions do
 
     callback_url = append_our_params(callback_uri, params)
 
-    case HTTPoison.get(callback_url) do
-      {:ok, %HTTPoison.Response{}} ->
+    case Tesla.get(callback_url) do
+      {:ok, %Tesla.Env{}} ->
         {:ok, :success}
 
-      {:error, %HTTPoison.Error{reason: reason}} ->
+      {:error, reason} ->
         Logger.error("Got unexpected error from validate unsubscribe call: #{reason}")
         {:unsubscribe_validation_error, :failed_unknown_error}
     end
@@ -203,11 +203,11 @@ defmodule WebSubHub.Subscriptions do
     final_url = append_our_params(callback_uri, params)
 
     # We don't especially care about a response on this one
-    case HTTPoison.get(final_url) do
-      {:ok, %HTTPoison.Response{}} ->
+    case Tesla.get(final_url) do
+      {:ok, %Tesla.Env{}} ->
         {:ok, :success}
 
-      {:error, %HTTPoison.Error{reason: _reason}} ->
+      {:error, _reason} ->
         {:ok, :error}
     end
   end

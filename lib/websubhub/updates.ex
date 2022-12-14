@@ -17,8 +17,8 @@ defmodule WebSubHub.Updates do
     case Subscriptions.get_topic_by_url(topic_url) do
       # Get all active subscriptions and publish the update to them
       %Subscriptions.Topic{} = topic ->
-        case HTTPoison.get(topic.url) do
-          {:ok, %HTTPoison.Response{status_code: code, body: body, headers: headers}}
+        case Tesla.get(topic.url) do
+          {:ok, %Tesla.Env{status: code, body: body, headers: headers}}
           when code >= 200 and code < 300 ->
             {:ok, update} = create_update(topic, body, headers)
 
@@ -99,7 +99,7 @@ defmodule WebSubHub.Updates do
   end
 
   defp get_content_type_header(headers) do
-    content_type? = &(&1 in ["Content-Type", "content-type"])
+    content_type? = &(String.downcase(&1) == "content-type")
     found = for {k, v} <- headers, content_type?.(k), do: v
 
     case found do
@@ -112,8 +112,8 @@ defmodule WebSubHub.Updates do
   end
 
   defp get_link_headers(headers) do
-    content_type? = &(&1 in ["Link", "link"])
-    for {k, v} <- headers, content_type?.(k), do: v
+    link? = &(String.downcase(&1) == "link")
+    for {k, v} <- headers, link?.(k), do: v
   end
 
   def count_30min_updates do

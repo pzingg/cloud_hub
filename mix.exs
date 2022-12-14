@@ -7,7 +7,7 @@ defmodule WebSubHub.MixProject do
       version: "0.1.0",
       elixir: "~> 1.12",
       elixirc_paths: elixirc_paths(Mix.env()),
-      compilers: [:gettext] ++ Mix.compilers(),
+      compilers: Mix.compilers(),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps()
@@ -34,16 +34,16 @@ defmodule WebSubHub.MixProject do
   defp deps do
     [
       {:fake_server, "~> 2.1", only: :test},
-      {:floki, ">= 0.30.0", only: :test},
+      {:floki, "~> 0.34", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:esbuild, "~> 0.2", runtime: Mix.env() == :dev},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:phoenix, "~> 1.6.0"},
+      {:phoenix, "~> 1.6"},
       {:phoenix_ecto, "~> 4.4"},
       {:ecto_sql, "~> 3.6"},
-      {:postgrex, ">= 0.0.0"},
+      {:postgrex, "~> 0.16"},
       {:phoenix_html, "~> 3.0"},
-      {:phoenix_live_view, "~> 0.16.0"},
+      {:phoenix_live_view, "~> 0.17"},
       {:phoenix_live_dashboard, "~> 0.5"},
       {:swoosh, "~> 1.3"},
       {:telemetry_metrics, "~> 0.6"},
@@ -51,7 +51,7 @@ defmodule WebSubHub.MixProject do
       {:gettext, "~> 0.18"},
       {:jason, "~> 1.2"},
       {:plug_cowboy, "~> 2.5"},
-      {:httpoison, "~> 1.8"},
+      {:tesla, "~> 1.4"},
       {:oban, "~> 2.10"},
       {:ecto_psql_extras, "~> 0.6"}
     ]

@@ -41,20 +41,20 @@ defmodule WebSubHub.Jobs.DispatchPlainUpdate do
   end
 
   defp perform_request(callback_url, body, headers) do
-    case HTTPoison.post(callback_url, body, headers) do
-      {:ok, %HTTPoison.Response{status_code: code}} when code >= 200 and code < 300 ->
+    case Tesla.post(callback_url, body, headers) do
+      {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
         Logger.info("Get OK response from #{callback_url}")
 
         {:ok, code}
 
-      {:ok, %HTTPoison.Response{status_code: 410}} ->
+      {:ok, %Tesla.Env{status: 410}} ->
         # Invalidate this subscription
         {:ok, 410}
 
-      {:ok, %HTTPoison.Response{status_code: status_code}} ->
-        {:failed, status_code}
+      {:ok, %Tesla.Env{status: code}} ->
+        {:failed, code}
 
-      {:error, %HTTPoison.Error{reason: reason}} ->
+      {:error, reason} ->
         Logger.error("Get error response from #{callback_url}: #{reason}")
         {:error, reason}
     end

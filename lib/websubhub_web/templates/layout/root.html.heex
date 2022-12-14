@@ -6,7 +6,9 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <%= csrf_meta_tag() %>
-    <%= live_title_tag assigns[:page_title] || "WebSubHub" %>
+    <.live_title>
+        <%= assigns[:page_title] || "WebSubHub" %>
+    </.live_title>
     <meta name="description"
         content="WebSubHub is a fully compliant WebSub Hub built that you can use to distribute live changes from various publishers.">
 

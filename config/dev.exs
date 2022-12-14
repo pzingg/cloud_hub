@@ -8,6 +8,7 @@ config :websubhub, WebSubHub.Repo,
   password: "postgres",
   database: "websubhub_dev",
   hostname: "localhost",
+  port: 5433,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 

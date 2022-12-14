@@ -45,7 +45,7 @@ defmodule WebSubHubWeb do
   def live_view do
     quote do
       use Phoenix.LiveView,
-        layout: {WebSubHubWeb.LayoutView, "live.html"}
+        layout: {WebSubHubWeb.LayoutView, :live}
 
       unquote(view_helpers())
     end
@@ -81,8 +81,8 @@ defmodule WebSubHubWeb do
       # Use all HTML functionality (forms, tags, etc)
       use Phoenix.HTML
 
-      # Import LiveView and .heex helpers (live_render, live_patch, <.form>, etc)
-      import Phoenix.LiveView.Helpers
+      # Import live_render, live_patch, assign, etc
+      import Phoenix.Component
 
       # Import basic rendering functionality (render, render_layout, etc)
       import Phoenix.View
