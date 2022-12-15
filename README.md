@@ -146,7 +146,7 @@ mix test
 ## Help
 
 If you need help with anything, please feel free to open a GitHub issue
-[at the original WebSubHub repository](https://github.com/clone1018/WebSubHub/issues) or [at the combined WebSub Hub and RSS Cloud repository](https://github.com/pzingg/cloud_sub/issues).
+[at the original WebSub Hub-only repository](https://github.com/clone1018/WebSubHub/issues) or [at this combined WebSub Hub and RSS Cloud repository](https://github.com/pzingg/cloud_hub/issues).
 
 ## License
 
