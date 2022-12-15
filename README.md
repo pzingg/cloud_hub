@@ -100,7 +100,7 @@ hub's activity. At present, this is exposed publicly.
 
 ## TODO
 
-See the issues list at https://github.com/pzingg/cloud_sub/issues, and
+See the issues list at https://github.com/pzingg/cloud_hub/issues, and
 feel free to note bugs.
 
 ## Development
@@ -150,4 +150,4 @@ If you need help with anything, please feel free to open a GitHub issue
 
 ## License
 
-cloud_sub is licensed under the [MIT License](LICENSE.md).
+cloud_hub is licensed under the [MIT License](LICENSE.md).
