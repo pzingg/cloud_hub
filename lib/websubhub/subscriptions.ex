@@ -11,6 +11,8 @@ defmodule WebSubHub.Subscriptions do
   alias WebSubHub.Subscriptions.Topic
   alias WebSubHub.Subscriptions.Subscription
 
+  alias WebSubHub.Updates.SubscriptionUpdate
+
   def subscribe(api, topic_url, callback_url, lease_seconds \\ 864_000, opts \\ []) do
     secret = Keyword.get(opts, :secret)
 
@@ -53,9 +55,11 @@ defmodule WebSubHub.Subscriptions do
     with {:ok, _} <- validate_url(topic_url),
          {:ok, callback_uri} <- validate_url(callback_url),
          %Topic{} = topic <- get_topic_by_url(topic_url),
-         %Subscription{} = subscription <-
+         %Subscription{api: api} = subscription <-
            Repo.get_by(Subscription, topic_id: topic.id, callback_url: callback_url) do
-      validate_unsubscribe(topic, callback_uri)
+      if api == :websub do
+        _ = validate_unsubscribe(topic, callback_uri)
+      end
 
       subscription
       |> Subscription.changeset(%{
@@ -66,6 +70,20 @@ defmodule WebSubHub.Subscriptions do
       _ -> {:error, :subscription_not_found}
     end
   end
+
+  @doc """
+  We callback on WebSub subscriptions just before deleting them.
+  """
+  def final_unsubscribe(%Subscription{api: :websub} = subscription) do
+    with {:ok, callback_uri} <- validate_url(subscription.callback_url) do
+      Subscriptions.validate_unsubscribe(subscription.topic, callback_uri)
+    else
+      _ ->
+        {:unsubscribe_validation_error, "Subscription with improper callback_url"}
+    end
+  end
+
+  def final_unsubscribe(%Subscription{api: :rsscloud}), do: :ok
 
   @doc """
   Find or create a topic.
@@ -172,7 +190,6 @@ defmodule WebSubHub.Subscriptions do
 
   def validate_rsscloud_subscription(topic, callback_uri, false) do
     callback_url = to_string(callback_uri)
-    # Either this, or use Tesla.Middleware.
     body = %{url: topic.url}
 
     case HTTPClient.post_form(callback_url, body) do
@@ -220,7 +237,7 @@ defmodule WebSubHub.Subscriptions do
 
     case HTTPClient.get(callback_url) do
       {:ok, %Tesla.Env{}} ->
-        {:ok, :success}
+        :ok
 
       {:error, reason} ->
         Logger.error("Got unexpected error from validate unsubscribe call: #{reason}")
@@ -287,11 +304,36 @@ defmodule WebSubHub.Subscriptions do
   def list_active_topic_subscriptions(%Topic{} = topic) do
     now = NaiveDateTime.utc_now()
 
-    Repo.all(
-      from(s in Subscription,
-        where: s.topic_id == ^topic.id and s.expires_at >= ^now
-      )
+    from(s in Subscription,
+      where: s.topic_id == ^topic.id and s.expires_at >= ^now
     )
+    |> Repo.all()
+  end
+
+  def list_inactive_subscriptions(now) do
+    from(s in Subscription,
+      where: s.expires_at < ^now,
+      join: t in assoc(s, :topic),
+      preload: [topic: t]
+    )
+    |> Repo.all()
+  end
+
+  def delete_all_inactive_subscriptions(now) do
+    {su_count, _} =
+      from(su in SubscriptionUpdate,
+        join: s in assoc(su, :subscription),
+        where: s.expires_at < ^now
+      )
+      |> Repo.delete_all()
+
+    {s_count, _} =
+      from(s in Subscription,
+        where: s.expires_at < ^now
+      )
+      |> Repo.delete_all()
+
+    {s_count, su_count}
   end
 
   defp append_our_params(%URI{query: old_params} = uri, params) do

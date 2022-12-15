@@ -18,6 +18,23 @@ defmodule WebSubHub.RSSCloudTest do
   """
   @text_body "Hello world"
   @json_body %{"hello" => "world"}
+  @xml_body """
+  <?xml version="1.0" encoding="UTF-8"?>
+  <rss version="2.0">
+    <channel>
+      <title>Scripting News</title>
+      <link>http://scripting.com/</link>
+      <description>It's even worse than it appears..</description>
+      <pubDate>Wed, 14 Dec 2022 16:36:13 GMT</pubDate>
+      <lastBuildDate>Wed, 14 Dec 2022 17:54:45 GMT</lastBuildDate>
+      <item>
+        <description>The idea of <a href="http://textcasting.org/">textcasting</a> is like podcasting.</description>    <pubDate>Wed, 14 Dec 2022 13:44:21 GMT</pubDate>
+        <link>http://scripting.com/2022/12/14.html#a134421</link>
+        <guid>http://scripting.com/2022/12/14.html#a134421</guid>
+      </item>
+    </channel>
+  </rss>
+  """
 
   @moduledoc """
   Implements the tests described by https://websub.rocks/hub
@@ -44,6 +61,7 @@ defmodule WebSubHub.RSSCloudTest do
       {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, update} = Updates.publish(topic_url)
+      assert update.content_type == "text/html; charset=UTF-8"
 
       assert_enqueued(
         worker: WebSubHub.Jobs.DispatchPlainUpdate,
@@ -96,7 +114,9 @@ defmodule WebSubHub.RSSCloudTest do
       )
 
       assert hits(publisher_pid) == 1
-      assert hits(subscriber_pid) == 2
+
+      # Note that :rsscloud does not notify on unsubscription
+      assert hits(subscriber_pid) == 1
     end
   end
 
@@ -138,6 +158,7 @@ defmodule WebSubHub.RSSCloudTest do
       {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, update} = Updates.publish(topic_url)
+      assert update.content_type == "text/plain"
 
       assert_enqueued(
         worker: WebSubHub.Jobs.DispatchPlainUpdate,
@@ -181,6 +202,7 @@ defmodule WebSubHub.RSSCloudTest do
       {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, update} = Updates.publish(topic_url)
+      assert update.content_type == "application/json"
 
       assert_enqueued(
         worker: WebSubHub.Jobs.DispatchPlainUpdate,
@@ -203,6 +225,101 @@ defmodule WebSubHub.RSSCloudTest do
 
       assert HTTPClient.get_header(publish.headers, "content-type") ==
                "application/x-www-form-urlencoded"
+    end
+  end
+
+  describe "XML content" do
+    @doc """
+    This test will check whether your hub can handle delivering content that is not HTML or XML. The content at the topic URL of this test is JSON.
+    """
+
+    setup [:setup_xml_publisher, :setup_subscriber]
+
+    test "XML content", %{
+      subscriber_pid: subscriber_pid,
+      subscriber_url: subscriber_url,
+      publisher_pid: publisher_pid,
+      publisher_url: publisher_url
+    } do
+      topic_url = publisher_url
+      callback_url = subscriber_url
+      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+
+      {:ok, update} = Updates.publish(topic_url)
+      assert update.content_type == "application/rss+xml"
+
+      assert_enqueued(
+        worker: WebSubHub.Jobs.DispatchPlainUpdate,
+        args: %{
+          update_id: update.id,
+          subscription_id: subscription.id,
+          subscription_api: "rsscloud",
+          callback_url: callback_url,
+          secret: nil
+        }
+      )
+
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :updates)
+
+      assert hits(publisher_pid) == 1
+      assert hits(subscriber_pid) == 2
+      {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
+
+      assert publish.body == "url=" <> URI.encode_www_form(topic_url)
+
+      assert HTTPClient.get_header(publish.headers, "content-type") ==
+               "application/x-www-form-urlencoded"
+    end
+  end
+
+  describe "pruning" do
+    @doc """
+    This test will check whether we can prune expired subscriptions.
+    """
+
+    setup [:setup_xml_publisher, :setup_subscriber]
+
+    test "Typical subscriber request", %{
+      subscriber_pid: subscriber_pid,
+      subscriber_url: subscriber_url,
+      publisher_pid: publisher_pid,
+      publisher_url: publisher_url
+    } do
+      topic_url = publisher_url
+      callback_url = subscriber_url
+      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+
+      {:ok, update} = Updates.publish(topic_url)
+      assert update.content_type == "application/rss+xml"
+
+      assert_enqueued(
+        worker: WebSubHub.Jobs.DispatchPlainUpdate,
+        args: %{
+          update_id: update.id,
+          subscription_id: subscription.id,
+          subscription_api: "rsscloud",
+          callback_url: callback_url,
+          secret: nil
+        }
+      )
+
+      expiring =
+        DateTime.utc_now()
+        |> DateTime.add(30 * 24 * 3_600, :second)
+        |> DateTime.to_iso8601()
+
+      WebSubHub.Jobs.PruneSubscriptions.new(%{expiring: expiring})
+      |> Oban.insert()
+
+      assert_enqueued(
+        worker: WebSubHub.Jobs.PruneSubscriptions,
+        args: %{
+          expiring: expiring
+        }
+      )
+
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :prune_subscriptions)
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :updates)
     end
   end
 
@@ -268,6 +385,28 @@ defmodule WebSubHub.RSSCloudTest do
         FakeServer.Response.ok(
           @json_body,
           %{"Content-Type" => "application/json"}
+        )
+      end)
+
+    [publisher_pid: pid, publisher_url: publisher_url]
+  end
+
+  def setup_xml_publisher(_) do
+    {:ok, pid} = FakeServer.start(:publisher_server)
+    port = FakeServer.port!(pid)
+
+    on_exit(fn ->
+      FakeServer.stop(pid)
+    end)
+
+    callback_path = "/posts"
+    publisher_url = "http://localhost:#{port}" <> callback_path
+
+    :ok =
+      FakeServer.put_route(pid, callback_path, fn _ ->
+        FakeServer.Response.ok(
+          @xml_body,
+          %{"Content-Type" => "application/rss+xml"}
         )
       end)
 

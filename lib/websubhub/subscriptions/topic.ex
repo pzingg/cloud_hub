@@ -3,6 +3,9 @@ defmodule WebSubHub.Subscriptions.Topic do
   import Ecto.Changeset
 
   schema "topics" do
+    has_many :subscriptions, WebSubHub.Subscriptions.Subscription
+    has_many :updates, WebSubHub.Updates.Update
+
     field :url, :string
 
     timestamps()

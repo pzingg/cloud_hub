@@ -4,6 +4,8 @@ defmodule WebSubHub.Subscriptions.Subscription do
 
   schema "subscriptions" do
     belongs_to :topic, WebSubHub.Subscriptions.Topic
+    has_many :subscription_updates, WebSubHub.Updates.SubscriptionUpdate
+
     field :callback_url, :string
     field :lease_seconds, :float
     field :expires_at, :naive_datetime
@@ -17,9 +19,10 @@ defmodule WebSubHub.Subscriptions.Subscription do
   @doc false
   def changeset(subscription, attrs) do
     subscription
-    |> cast(attrs, [:api, :callback_url, :lease_seconds, :expires_at, :secret, :diff_domain])
+    |> cast(attrs, [:topic_id, :api, :callback_url, :lease_seconds, :expires_at, :secret, :diff_domain])
     |> validate_required([:callback_url, :lease_seconds, :expires_at])
     |> validate_method()
+    |> foreign_key_constraint(:topic_id)
     |> unique_constraint([:topic_id, :callback_url])
   end
 

@@ -12,7 +12,7 @@ config :websubhub,
 
 config :websubhub, Oban,
   repo: WebSubHub.Repo,
-  queues: [updates: 50]
+  queues: [updates: 50, prune_subscriptions: 10]
 
 # Configures the endpoint
 config :websubhub, WebSubHubWeb.Endpoint,

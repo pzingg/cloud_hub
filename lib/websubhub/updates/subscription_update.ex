@@ -15,7 +15,9 @@ defmodule WebSubHub.Updates.SubscriptionUpdate do
   @doc false
   def changeset(topic, attrs) do
     topic
-    |> cast(attrs, [:pushed_at, :status_code])
+    |> cast(attrs, [:update_id, :subscription_id, :pushed_at, :status_code])
     |> validate_required([:pushed_at, :status_code])
+    |> foreign_key_constraint(:update_id)
+    |> foreign_key_constraint(:subscription_id)
   end
 end

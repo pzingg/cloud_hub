@@ -4,6 +4,7 @@ defmodule WebSubHub.Updates.Update do
 
   schema "updates" do
     belongs_to :topic, WebSubHub.Subscriptions.Topic
+    has_many :subscription_updates, WebSubHub.Updates.SubscriptionUpdate
 
     field :body, :binary
     field :headers, WebSubHub.Updates.Headers
@@ -17,7 +18,8 @@ defmodule WebSubHub.Updates.Update do
   @doc false
   def changeset(topic, attrs) do
     topic
-    |> cast(attrs, [:body, :headers, :content_type, :hash, :links])
+    |> cast(attrs, [:topic_id, :body, :headers, :content_type, :hash, :links])
     |> validate_required([:body, :content_type, :hash, :links])
+    |> foreign_key_constraint(:topic_id)
   end
 end

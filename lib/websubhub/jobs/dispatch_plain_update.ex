@@ -5,6 +5,7 @@ defmodule WebSubHub.Jobs.DispatchPlainUpdate do
   alias WebSubHub.HTTPClient
 
   alias WebSubHub.Updates
+  alias WebSubHub.Updates.Update
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -16,12 +17,18 @@ defmodule WebSubHub.Jobs.DispatchPlainUpdate do
           "secret" => secret
         }
       }) do
-    update = WebSubHub.Updates.get_update_and_topic(update_id)
-    topic_url = update.topic.url
-    api = String.to_existing_atom(api)
+    with %Update{} = update <- WebSubHub.Updates.get_update_and_topic(update_id) do
+      topic_url = update.topic.url
+      api = String.to_existing_atom(api)
 
-    perform_request(api, callback_url, topic_url, update, secret)
-    |> log_request(update.id, subscription_id)
+      perform_request(api, callback_url, topic_url, update, secret)
+      |> log_request(update.id, subscription_id)
+    else
+      # In case update has already been removed.
+      _ ->
+        Logger.error("Could not find update #{update_id}")
+        {:error, "Update not found"}
+    end
   end
 
   defp perform_request(:websub, callback_url, topic_url, update, secret) do
@@ -76,7 +83,8 @@ defmodule WebSubHub.Jobs.DispatchPlainUpdate do
         {:failed, code}
 
       {:error, reason} ->
-        {:error, reason}
+        Logger.error("RSSCloud got ERROR at #{callback_url}: #{inspect(reason)}")
+        {:error, 500}
     end
   end
 
@@ -95,7 +103,16 @@ defmodule WebSubHub.Jobs.DispatchPlainUpdate do
           nil
       end
 
-    Updates.create_subscription_update(update_id, subscription_id, status_code)
+    # Will fail if either update at update_id or subscription at subscription_id is gone
+    _ =
+      case Updates.create_subscription_update(update_id, subscription_id, status_code) do
+        {:ok, %{id: id}} ->
+          Logger.debug("New update #{id} for subscription #{subscription_id}")
+
+        {:error, changeset} ->
+          Logger.error("Failed to create update for subscription #{subscription_id}")
+          Logger.error("  -> #{inspect(changeset.errors)}")
+      end
 
     res
   end

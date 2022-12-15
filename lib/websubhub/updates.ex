@@ -21,26 +21,30 @@ defmodule WebSubHub.Updates do
         case HTTPClient.get(topic.url) do
           {:ok, %Tesla.Env{status: code, body: body, headers: headers}}
           when code >= 200 and code < 300 ->
-            {:ok, update} = create_update(topic, body, headers)
+            with {:ok, update} <- create_update(topic, body, headers) do
+              # Realistically we should do all of this async, for now we'll do querying line and dispatch async
+              subscribers = Subscriptions.list_active_topic_subscriptions(topic)
 
-            # Realistically we should do all of this async, for now we'll do querying line and dispatch async
-            subscribers = Subscriptions.list_active_topic_subscriptions(topic)
+              Enum.each(subscribers, fn subscription ->
+                Logger.debug("Queueing dispatch to #{subscription.callback_url}")
 
-            Enum.each(subscribers, fn subscription ->
-              Logger.debug("Queueing dispatch to #{subscription.callback_url}")
+                WebSubHub.Jobs.DispatchPlainUpdate.new(%{
+                  callback_url: subscription.callback_url,
+                  update_id: update.id,
+                  subscription_id: subscription.id,
+                  subscription_api: subscription.api,
+                  secret: subscription.secret
+                })
+                |> Oban.insert()
+              end)
 
-              WebSubHub.Jobs.DispatchPlainUpdate.new(%{
-                callback_url: subscription.callback_url,
-                update_id: update.id,
-                subscription_id: subscription.id,
-                subscription_api: subscription.api,
-                secret: subscription.secret
-              })
-              |> Oban.insert()
-            end)
-
-            Logger.info("Updates.publish: Sending updates for #{topic_url}")
-            {:ok, update}
+              Logger.info("Updates.publish: Sending updates for #{topic_url}")
+              {:ok, update}
+            else
+              {:error, _changeset} ->
+                Logger.error("Updates.publish: Could not create new record for #{topic.url}")
+                {:error, "Error creating update record."}
+            end
 
           _ ->
             Logger.error("Updates.publish: Unsuccessful response code for #{topic.url}")
