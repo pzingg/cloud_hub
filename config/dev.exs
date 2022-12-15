@@ -1,12 +1,12 @@
 import Config
 
-config :websubhub, :environment, :dev
+config :cloud_hub, :environment, :dev
 
 # Configure your database
-config :websubhub, WebSubHub.Repo,
+config :cloud_hub, CloudHub.Repo,
   username: "postgres",
   password: "postgres",
-  database: "websubhub_dev",
+  database: "cloud_hub_dev",
   hostname: "localhost",
   port: 5433,
   show_sensitive_data_on_connection_error: true,
@@ -18,7 +18,7 @@ config :websubhub, WebSubHub.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we use it
 # with esbuild to bundle .js and .css sources.
-config :websubhub, WebSubHubWeb.Endpoint,
+config :cloud_hub, CloudHubWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {0, 0, 0, 0}, port: 4000],
@@ -56,13 +56,13 @@ config :websubhub, WebSubHubWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :websubhub, WebSubHubWeb.Endpoint,
+config :cloud_hub, CloudHubWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
-      ~r"lib/websubhub_web/(live|views)/.*(ex)$",
-      ~r"lib/websubhub_web/templates/.*(eex)$"
+      ~r"lib/cloud_hub_web/(live|views)/.*(ex)$",
+      ~r"lib/cloud_hub_web/templates/.*(eex)$"
     ]
   ]
 

@@ -14,7 +14,7 @@ if config_env() == :prod do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  config :websubhub, WebSubHub.Repo,
+  config :cloud_hub, CloudHub.Repo,
     # ssl: true,
     # socket_options: [:inet6],
     url: database_url,
@@ -32,8 +32,8 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  config :websubhub, WebSubHubWeb.Endpoint,
-    url: [host: "websubhub.com", port: System.get_env("PORT") || 4000],
+  config :cloud_hub, CloudHubWeb.Endpoint,
+    url: [host: "cloud_hub.com", port: System.get_env("PORT") || 4000],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
@@ -45,11 +45,11 @@ if config_env() == :prod do
     secret_key_base: secret_key_base
 
   if System.get_env("START_SSL") do
-    config :websubhub, WebSubHubWeb.Endpoint,
+    config :cloud_hub, CloudHubWeb.Endpoint,
       https: [
         port: 443,
         cipher_suite: :strong,
-        otp_app: :websubhub,
+        otp_app: :cloud_hub,
         keyfile: System.get_env("SSL_KEYFILE_PATH"),
         certfile: System.get_env("SSL_CERTFILE_PATH"),
         cacertfile: System.get_env("SSL_CACERTFILE_PATH")
@@ -61,7 +61,7 @@ if config_env() == :prod do
   # If you are doing OTP releases, you need to instruct Phoenix
   # to start each relevant endpoint:
   #
-  config :websubhub, WebSubHubWeb.Endpoint, server: true
+  config :cloud_hub, CloudHubWeb.Endpoint, server: true
 
   # Then you can assemble a release by calling `mix release`.
   # See `mix help release` for more information.
@@ -72,7 +72,7 @@ if config_env() == :prod do
   # Also, you may need to configure the Swoosh API client of your choice if you
   # are not using SMTP. Here is an example of the configuration:
   #
-  #     config :websubhub, WebSubHub.Mailer,
+  #     config :cloud_hub, CloudHub.Mailer,
   #       adapter: Swoosh.Adapters.Mailgun,
   #       api_key: System.get_env("MAILGUN_API_KEY"),
   #       domain: System.get_env("MAILGUN_DOMAIN")

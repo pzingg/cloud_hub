@@ -1,4 +1,4 @@
-defmodule WebSubHub.Repo.Migrations.AddObanJobsTable do
+defmodule CloudHub.Repo.Migrations.AddObanJobsTable do
   use Ecto.Migration
 
   def up do

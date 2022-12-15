@@ -35,8 +35,8 @@ RUN chown nobody:nobody /app
 
 USER nobody:nobody
 
-COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/websubhub ./
+COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/cloud_hub ./
 
 ENV HOME=/app
 
-CMD ["bin/websubhub", "start"]
+CMD ["bin/cloud_hub", "start"]

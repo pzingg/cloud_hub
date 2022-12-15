@@ -1,9 +1,9 @@
-defmodule WebSubHub.MixProject do
+defmodule CloudHub.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :websubhub,
+      app: :cloud_hub,
       version: "0.1.0",
       elixir: "~> 1.12",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -19,7 +19,7 @@ defmodule WebSubHub.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {WebSubHub.Application, []},
+      mod: {CloudHub.Application, []},
       extra_applications: [:logger, :runtime_tools, :os_mon]
     ]
   end

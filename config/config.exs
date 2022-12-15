@@ -7,18 +7,18 @@
 # General application configuration
 import Config
 
-config :websubhub,
-  ecto_repos: [WebSubHub.Repo]
+config :cloud_hub,
+  ecto_repos: [CloudHub.Repo]
 
-config :websubhub, Oban,
-  repo: WebSubHub.Repo,
-  queues: [updates: 50, prune_subscriptions: 10]
+config :cloud_hub, Oban,
+  repo: CloudHub.Repo,
+  queues: [feed_updates: 50, prune_feed_subscriptions: 10]
 
 # Configures the endpoint
-config :websubhub, WebSubHubWeb.Endpoint,
+config :cloud_hub, CloudHubWeb.Endpoint,
   url: [host: "localhost"],
-  render_errors: [view: WebSubHubWeb.ErrorView, accepts: ~w(html json), layout: false],
-  pubsub_server: WebSubHub.PubSub,
+  render_errors: [view: CloudHubWeb.ErrorView, accepts: ~w(html json), layout: false],
+  pubsub_server: CloudHub.PubSub,
   live_view: [signing_salt: "NziEB/R6"]
 
 # Configures the mailer
@@ -28,7 +28,7 @@ config :websubhub, WebSubHubWeb.Endpoint,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :websubhub, WebSubHub.Mailer, adapter: Swoosh.Adapters.Local
+config :cloud_hub, CloudHub.Mailer, adapter: Swoosh.Adapters.Local
 
 # Swoosh API client is needed for adapters other than SMTP.
 config :swoosh, :api_client, false
