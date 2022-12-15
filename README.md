@@ -32,8 +32,8 @@ for more information on the www-form-urlencoded parameters that should
 be sent to these URLs, and for how the hub server will request validation and
 send notification callbacks.
 
-If you the publisher of an RSS 2.0 feed, you can add a **<cloud>** child element
-to the **<channel>** element in your feed, with these attributes:
+If you the publisher of an RSS 2.0 feed, you can add a **\<cloud\>** child element
+to the **\<channel\>** element in your feed, with these attributes:
 
 * **protocol** set to "http-rest" or "https-rest" depending on the endpoint URL
 for your cloud_hub deployment.
@@ -43,8 +43,8 @@ for your cloud_hub deployment.
 * **path** set to "/rsscloud/pleaseNotify"
 * **registerProcedure** set to "" (XML-RPC is not implemented)
 
-See the (RSS 2.0 Specification)[https://www.rssboard.org/rss-specification#ltcloudgtSubelementOfLtchannelgt]
-for more information about the **<cloud>** element.
+See the [RSS 2.0 Specification](https://www.rssboard.org/rss-specification#ltcloudgtSubelementOfLtchannelgt)
+for more information about the **\<cloud\>** element.
 
 Then whenever you update your feed (the "resource"), send a HTTP POST request
 to the **/rsscloud/ping** URL on the cloud_hub server with one
@@ -75,13 +75,13 @@ of the WebSub Hub specification for information on the parameters that must
 be sent in the POST body to the **/hub** URL.
 
 If you are the publisher of an Atom feed, your feed should include at
-least two **<link>** elements as children of the **<feed>** element.
+least two **\<link\>** elements as children of the **\<feed\>** element.
 
-* A **<link>** with a **rel** attribute having the value **"self"**. The
+* A **\<link\>** with a **rel** attribute having the value **"self"**. The
 **href** attribute should be the URL that the WebSub Hub server will
 use to fetch resource content when it has been updated.
 
-* A **<link>** with a **rel** attribute having the value **"hub"**. The
+* A **\<link\>** with a **rel** attribute having the value **"hub"**. The
 **href** attribute should be the URL of your cloud_hub deployment
 (with the path component of the URL being "/hub").
 
