@@ -1,4 +1,5 @@
 Copyright (c) 2022 Luke Strickland
+Portions Copyright (c) 2022 Peter Zingg
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
