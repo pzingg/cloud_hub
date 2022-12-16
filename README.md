@@ -121,7 +121,7 @@ Ready to run in production? Please
 ## Acknowledgments
 
 This repository is forked from the original
-[CloudHub repository](https://github.com/clone1018/CloudHub) by Luke Strickland.
+[WebSubHub repository](https://github.com/clone1018/WebSubHub) by Luke Strickland.
 Work to extend the server to support RSSCloud, and other changes made for future
 compatibility with the Mastodon-compatible
 [Akkoma Fediverse microblogging server](https://akkoma.dev/AkkomaGang/akkoma/)
@@ -146,7 +146,7 @@ mix test
 ## Help
 
 If you need help with anything, please feel free to open a GitHub issue
-[at the original WebSub Hub-only repository](https://github.com/clone1018/CloudHub/issues) or [at this combined WebSub Hub and RSS Cloud repository](https://github.com/pzingg/cloud_hub/issues).
+[at the original WebSub Hub-only repository](https://github.com/clone1018/WebSubHub/issues) or [at this combined WebSub Hub and RSS Cloud repository](https://github.com/pzingg/cloud_hub/issues).
 
 ## License
 
