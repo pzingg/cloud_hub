@@ -13,8 +13,6 @@ defmodule Pleroma.Feed.Updates do
   alias Pleroma.Feed.Topic
   alias Pleroma.Feed.Update
 
-  @content_type_text_plain [{"content-type", "text/plain"}]
-
   def publish(topic_url) do
     case Subscriptions.get_topic_by_url(topic_url) do
       # Get all active subscriptions and publish the update to them
@@ -63,15 +61,16 @@ defmodule Pleroma.Feed.Updates do
     end
   end
 
-  def create_update(%Topic{} = topic, %Tesla.Env{body: body} = env) when is_binary(body) do
+  def create_update(%Topic{} = topic, %Tesla.Env{body: body, headers: headers} = env) when is_binary(body) do
     content_type = Tesla.get_header(env, "content-type") || "application/octet-stream"
 
+    # BACKPORT
     %Update{
-      topic: topic
+      topic_id: topic.id
     }
     |> Update.changeset(%{
       body: body,
-      headers: @content_type_text_plain,
+      headers: headers,
       content_type: content_type,
       links: Tesla.get_headers(env, "link"),
       hash: :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)

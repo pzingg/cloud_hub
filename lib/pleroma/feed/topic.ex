@@ -3,10 +3,12 @@ defmodule Pleroma.Feed.Topic do
   import Ecto.Changeset
 
   schema "feed_topics" do
-    has_many :feed_subscriptions, Pleroma.Feed.Subscription
+    # BACKPORT
+    has_many :subscriptions, Pleroma.Feed.Subscription
     has_many :updates, Pleroma.Feed.Update
 
     field :url, :string
+    field :expires_at, :naive_datetime
 
     timestamps()
   end
@@ -14,7 +16,7 @@ defmodule Pleroma.Feed.Topic do
   @doc false
   def changeset(topic, attrs) do
     topic
-    |> cast(attrs, [:url])
+    |> cast(attrs, [:url, :expires_at])
     |> validate_required([:url])
     |> unique_constraint([:url])
   end

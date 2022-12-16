@@ -9,35 +9,14 @@ defmodule Pleroma.Feed.Subscriptions do
   alias Pleroma.HTTP
 
   alias Pleroma.Feed.Subscription
-  alias Pleroma.Feed.SubscriptionUpdate
   alias Pleroma.Feed.Topic
 
   def subscribe(api, topic_url, callback_url, lease_seconds \\ 864_000, opts \\ []) do
-    secret = Keyword.get(opts, :secret)
-
     with {:ok, _} <- validate_url(topic_url),
-         {:ok, callback_uri} <- validate_url(callback_url),
+         {:ok, _callback_uri} <- validate_url(callback_url),
          {:ok, topic} <- find_or_create_topic(topic_url),
-         {:ok, :success} <-
-           validate_subscription(api, topic, callback_uri, lease_seconds, opts) do
-      case Repo.get_by(Subscription, topic_id: topic.id, callback_url: callback_url) do
-        %Subscription{} = subscription ->
-          lease_seconds = convert_lease_seconds(lease_seconds)
-          expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
-
-          subscription
-          |> Subscription.changeset(%{
-            api: api,
-            secret: secret,
-            diff_domain: Keyword.get(opts, :diff_domain, false),
-            expires_at: expires_at,
-            lease_seconds: lease_seconds
-          })
-          |> Repo.update()
-
-        nil ->
-          create_subscription(api, topic, callback_uri, lease_seconds, opts)
-      end
+         :ok <- validate_subscription(api, topic, callback_url, lease_seconds, opts) do
+      find_or_create_subscription(api, topic, callback_url, lease_seconds, opts)
     else
       {:subscribe_validation_error, reason} ->
         # WebSub must notify callback on failure. Ignore return value.
@@ -45,8 +24,12 @@ defmodule Pleroma.Feed.Subscriptions do
         _ = deny_subscription(api, callback_url, topic_url, reason)
         {:error, reason}
 
-      _ ->
-        {:error, "something"}
+      {:error, %Ecto.Changeset{} = changeset} ->
+        Logger.error("subscribe data error: #{inspect(changeset.errors)}")
+        {:error, "data error"}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -84,6 +67,10 @@ defmodule Pleroma.Feed.Subscriptions do
 
   def final_unsubscribe(%Subscription{api: :rsscloud}), do: :ok
 
+  def get_topic_by_url(topic_url) do
+    Repo.get_by(Topic, url: topic_url)
+  end
+
   @doc """
   Find or create a topic.
 
@@ -102,18 +89,36 @@ defmodule Pleroma.Feed.Subscriptions do
       nil ->
         %Topic{}
         |> Topic.changeset(%{
-          url: topic_url
+          url: topic_url,
+          expires_at: ~N[2046-12-31 23:59:00]
         })
         |> Repo.insert()
     end
   end
 
-  def get_topic_by_url(topic_url) do
-    Repo.get_by(Topic, url: topic_url)
+  def find_subscription_by_api_topic_and_url(api, %Topic{} = topic, callback_url) do
+    Repo.get_by(Subscription, api: api, topic_id: topic.id, callback_url: callback_url)
   end
 
-  def get_subscription_by_url(callback_url) do
-    Repo.get_by(Subscription, callback_url: callback_url)
+  def find_or_create_subscription(api, %Topic{} = topic, callback_url, lease_seconds, opts) do
+    # BACKPORT api: api
+    case Repo.get_by(Subscription, api: api, topic_id: topic.id, callback_url: callback_url) do
+      %Subscription{} = subscription ->
+        lease_seconds = convert_lease_seconds(lease_seconds)
+        expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
+
+        subscription
+        |> Subscription.changeset(%{
+          secret: Keyword.get(opts, :secret),
+          diff_domain: Keyword.get(opts, :diff_domain, false),
+          expires_at: expires_at,
+          lease_seconds: lease_seconds
+        })
+        |> Repo.update()
+
+      nil ->
+        create_subscription(api, topic, callback_url, lease_seconds, opts)
+    end
   end
 
   @doc """
@@ -123,7 +128,7 @@ defmodule Pleroma.Feed.Subscriptions do
   def validate_subscription(
         :websub,
         %Topic{} = topic,
-        %URI{} = callback_uri,
+        callback_url,
         lease_seconds,
         _opts
       ) do
@@ -136,15 +141,13 @@ defmodule Pleroma.Feed.Subscriptions do
       {"hub.lease_seconds", lease_seconds}
     ]
 
-    callback_url = to_string(callback_uri)
-
     case HTTP.get(callback_url, [], query: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body matches our challenge
         if challenge != String.trim(body) do
           {:subscribe_validation_error, :failed_challenge_body}
         else
-          {:ok, :success}
+          :ok
         end
 
       other ->
@@ -155,15 +158,15 @@ defmodule Pleroma.Feed.Subscriptions do
   def validate_subscription(
         :rsscloud,
         %Topic{} = topic,
-        %URI{} = callback_uri,
+        callback_url,
         _lease_seconds,
         opts
       ) do
     diff_domain = Keyword.get(opts, :diff_domain, false)
-    validate_rsscloud_subscription(topic, callback_uri, diff_domain)
+    validate_rsscloud_subscription(topic, callback_url, diff_domain)
   end
 
-  def validate_rsscloud_subscription(topic, callback_uri, true) do
+  def validate_rsscloud_subscription(topic, callback_url, true) do
     challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
 
     query = [
@@ -171,13 +174,11 @@ defmodule Pleroma.Feed.Subscriptions do
       {"challenge", challenge}
     ]
 
-    callback_url = to_string(callback_uri)
-
     case HTTP.get(callback_url, [], query: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body contains our challenge
         if String.contains?(body, challenge) do
-          {:ok, :success}
+          :ok
         else
           {:subscribe_validation_error, :failed_challenge_body}
         end
@@ -193,7 +194,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
     case HTTP.post_form(callback_url, body) do
       {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
-        {:ok, :success}
+        :ok
 
       other ->
         handle_validation_errors(other)
@@ -245,16 +246,17 @@ defmodule Pleroma.Feed.Subscriptions do
     end
   end
 
-  def create_subscription(api, %Topic{} = topic, %URI{} = callback_uri, lease_seconds, opts) do
+  def create_subscription(api, %Topic{} = topic, callback_url, lease_seconds, opts) do
     lease_seconds = convert_lease_seconds(lease_seconds)
     expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
 
+    # BACKPORT
     %Subscription{
-      topic: topic
+      topic_id: topic.id
     }
     |> Subscription.changeset(%{
       api: api,
-      callback_url: to_string(callback_uri),
+      callback_url: callback_url,
       lease_seconds: lease_seconds,
       expires_at: expires_at,
       diff_domain: Keyword.get(opts, :diff_domain, false),
@@ -319,21 +321,60 @@ defmodule Pleroma.Feed.Subscriptions do
     |> Repo.all()
   end
 
+  def delete_subscription(subscription, now \\ nil) do
+    now = now || NaiveDateTime.utc_now()
+
+    Repo.transaction(fn ->
+      topic_id = subscription.topic_id
+
+      case Repo.delete(subscription) do
+        {:ok, _} ->
+          {n_topics, topic_ids} = update_topic_expirations([topic_id], now)
+          {1, n_topics, topic_ids}
+
+        _ ->
+          {0, 0, []}
+      end
+    end)
+    |> case do
+      {:ok, res} -> res
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # BACKPORT
   def delete_all_inactive_subscriptions(now) do
-    {su_count, _} =
-      from(su in SubscriptionUpdate,
-        join: s in assoc(su, :subscription),
-        where: s.expires_at < ^now
-      )
-      |> Repo.delete_all()
+    Repo.transaction(fn ->
+      # Cascades to delete all SubscriptionUpdates as well
+      {n_subs, topic_ids} =
+        from(s in Subscription,
+          select: s.topic_id,
+          where: s.expires_at < ^now
+        )
+        |> Repo.delete_all()
 
-    {s_count, _} =
-      from(s in Subscription,
-        where: s.expires_at < ^now
-      )
-      |> Repo.delete_all()
+      # Update those topics who now don't have a subscription
+      {n_topics, topic_ids} = update_topic_expirations(topic_ids, now)
 
-    {s_count, su_count}
+      {n_subs, n_topics, topic_ids}
+    end)
+    |> case do
+      {:ok, res} -> res
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def update_topic_expirations(topic_ids, now \\ nil) do
+    now = now || NaiveDateTime.utc_now()
+    lease_seconds = 6 * 3_600
+    expires_at = NaiveDateTime.add(now, lease_seconds, :second)
+
+    from(t in Topic,
+      select: t.id,
+      where: not exists(from(s in Subscription, where: s.topic_id in ^topic_ids)),
+      update: [set: [updated_at: fragment("NOW()"), expires_at: ^expires_at]]
+    )
+    |> Repo.update_all([])
   end
 
   defp validate_url(url) when is_binary(url) do
