@@ -81,7 +81,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTP.get_header(publish.headers, "content-type") ==
+      assert Tesla.get_header(publish, "content-type") ==
                "application/x-www-form-urlencoded"
     end
 
@@ -170,7 +170,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTP.get_header(publish.headers, "content-type") ==
+      assert Tesla.get_header(publish, "content-type") ==
                "application/x-www-form-urlencoded"
     end
   end
@@ -210,7 +210,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTP.get_header(publish.headers, "content-type") ==
+      assert Tesla.get_header(publish, "content-type") ==
                "application/x-www-form-urlencoded"
     end
   end
@@ -250,7 +250,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTP.get_header(publish.headers, "content-type") ==
+      assert Tesla.get_header(publish, "content-type") ==
                "application/x-www-form-urlencoded"
     end
   end

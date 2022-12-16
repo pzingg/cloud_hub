@@ -143,7 +143,7 @@ defmodule Pleroma.Feed.WebSubTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == @html_body
 
-      assert HTTP.get_header(publish.headers, "x-hub-signature") ==
+      assert Tesla.get_header(publish, "x-hub-signature") ==
                "sha256=9d63c6c06dca350aaa6955f9e4017b801fc56b4a904f2e4dab68652b6abfda4c"
     end
   end
@@ -201,9 +201,9 @@ defmodule Pleroma.Feed.WebSubTest do
 
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == @text_body
-      assert HTTP.get_header(publish.headers, "content-type") == "text/plain"
+      assert Tesla.get_header(publish, "content-type") == "text/plain"
 
-      assert HTTP.get_header(publish.headers, "link") ==
+      assert Tesla.get_header(publish, "link") ==
                "<#{topic_url}>; rel=self, <https://cloud_hub.com/hub>; rel=hub"
     end
   end
@@ -241,9 +241,9 @@ defmodule Pleroma.Feed.WebSubTest do
 
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert Jason.decode!(publish.body) == @json_body
-      assert HTTP.get_header(publish.headers, "content-type") == "application/json"
+      assert Tesla.get_header(publish, "content-type") == "application/json"
 
-      assert HTTP.get_header(publish.headers, "link") ==
+      assert Tesla.get_header(publish, "link") ==
                "<#{topic_url}>; rel=self, <https://cloud_hub.com/hub>; rel=hub"
     end
   end

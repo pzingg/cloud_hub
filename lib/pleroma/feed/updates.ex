@@ -20,9 +20,9 @@ defmodule Pleroma.Feed.Updates do
       # Get all active subscriptions and publish the update to them
       %Topic{} = topic ->
         case HTTP.get(topic.url) do
-          {:ok, %Tesla.Env{status: code, body: body, headers: headers}}
+          {:ok, %Tesla.Env{status: code} = env}
           when code >= 200 and code < 300 ->
-            with {:ok, update} <- create_update(topic, body, headers) do
+            with {:ok, update} <- create_update(topic, env) do
               # Realistically we should do all of this async, for now we'll do querying line and dispatch async
               subscribers = Subscriptions.list_active_topic_subscriptions(topic)
 
@@ -63,15 +63,17 @@ defmodule Pleroma.Feed.Updates do
     end
   end
 
-  def create_update(%Topic{} = topic, body, headers) when is_binary(body) do
+  def create_update(%Topic{} = topic, %Tesla.Env{body: body} = env) when is_binary(body) do
+    content_type = Tesla.get_header(env, "content-type") || "application/octet-stream"
+
     %Update{
       topic: topic
     }
     |> Update.changeset(%{
       body: body,
       headers: @content_type_text_plain,
-      content_type: get_content_type_header(headers),
-      links: get_link_headers(headers),
+      content_type: content_type,
+      links: Tesla.get_headers(env, "link"),
       hash: :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
     })
     |> Repo.insert()
@@ -103,15 +105,6 @@ defmodule Pleroma.Feed.Updates do
 
   def get_subscription_update(id) do
     Repo.get(SubscriptionUpdate, id)
-  end
-
-  defp get_content_type_header(headers) do
-    HTTP.get_header(headers, "content-type", "application/octet-stream")
-  end
-
-  defp get_link_headers(headers) do
-    link? = &(String.downcase(&1) == "link")
-    for {k, v} <- headers, link?.(k), do: v
   end
 
   def count_30min_updates do
