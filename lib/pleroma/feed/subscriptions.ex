@@ -129,16 +129,16 @@ defmodule Pleroma.Feed.Subscriptions do
       ) do
     challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
 
-    params = %{
-      "hub.mode" => "subscribe",
-      "hub.topic" => topic.url,
-      "hub.challenge" => challenge,
-      "hub.lease_seconds" => lease_seconds
-    }
+    query = [
+      {"hub.mode", "subscribe"},
+      {"hub.topic", topic.url},
+      {"hub.challenge", challenge},
+      {"hub.lease_seconds", lease_seconds}
+    ]
 
-    callback_url = append_our_params(callback_uri, params)
+    callback_url = to_string(callback_uri)
 
-    case HTTPClient.get(callback_url) do
+    case HTTPClient.get(callback_url, query: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body matches our challenge
         if challenge != String.trim(body) do
@@ -166,14 +166,14 @@ defmodule Pleroma.Feed.Subscriptions do
   def validate_rsscloud_subscription(topic, callback_uri, true) do
     challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
 
-    params = %{
-      "url" => topic.url,
-      "challenge" => challenge
-    }
+    query = [
+      {"url", topic.url},
+      {"challenge", challenge}
+    ]
 
-    callback_url = append_our_params(callback_uri, params)
+    callback_url = to_string(callback_uri)
 
-    case HTTPClient.get(callback_url) do
+    case HTTPClient.get(callback_url, query: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body contains our challenge
         if String.contains?(body, challenge) do
@@ -204,7 +204,8 @@ defmodule Pleroma.Feed.Subscriptions do
     {:subscribe_validation_error, :failed_404_response}
   end
 
-  def handle_validation_errors({:ok, %Tesla.Env{}}) do
+  def handle_validation_errors({:ok, %Tesla.Env{} = env}) do
+    Logger.error("failed_unknown_response #{inspect(env)}")
     {:subscribe_validation_error, :failed_unknown_response}
   end
 
@@ -226,15 +227,15 @@ defmodule Pleroma.Feed.Subscriptions do
       ) do
     challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
 
-    params = %{
-      "hub.mode" => "unsubscribe",
-      "hub.topic" => topic.url,
-      "hub.challenge" => challenge
-    }
+    query = [
+      {"hub.mode", "unsubscribe"},
+      {"hub.topic", topic.url},
+      {"hub.challenge", challenge}
+    ]
 
-    callback_url = append_our_params(callback_uri, params)
+    callback_url = to_string(callback_uri)
 
-    case HTTPClient.get(callback_url) do
+    case HTTPClient.get(callback_url, query: query) do
       {:ok, %Tesla.Env{}} ->
         :ok
 
@@ -272,16 +273,16 @@ defmodule Pleroma.Feed.Subscriptions do
     # If (and when) the subscription is denied, the hub MUST inform the subscriber by sending an HTTP [RFC7231]
     # (or HTTPS [RFC2818]) GET request to the subscriber's callback URL as given in the subscription request. This request has the following query string arguments appended (format described in Section 4 of [URL]):
     with {:ok, callback_uri} <- validate_url(callback_url) do
-      params = %{
-        "hub.mode" => "denied",
-        "hub.topic" => topic_url,
-        "hub.reason" => reason_string(reason)
-      }
+      query = [
+        {"hub.mode", "denied"},
+        {"hub.topic", topic_url},
+        {"hub.reason", reason_string(reason)}
+      ]
 
-      final_url = append_our_params(callback_uri, params)
+      final_url = to_string(callback_uri)
 
       # We don't especially care about a response on this one
-      case HTTPClient.get(final_url) do
+      case HTTPClient.get(final_url, query) do
         {:ok, %Tesla.Env{}} ->
           :ok
 
@@ -334,17 +335,6 @@ defmodule Pleroma.Feed.Subscriptions do
 
     {s_count, su_count}
   end
-
-  defp append_our_params(%URI{query: old_params} = uri, params) do
-    query_addition = URI.encode_query(params)
-
-    %{uri | query: merge_query_params(old_params, query_addition)}
-    |> to_string()
-  end
-
-  defp merge_query_params(nil, new), do: new
-  defp merge_query_params("", new), do: new
-  defp merge_query_params(original, new), do: original <> "&" <> new
 
   defp validate_url(url) when is_binary(url) do
     case URI.new(url) do

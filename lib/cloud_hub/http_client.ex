@@ -1,12 +1,6 @@
 defmodule CloudHub.HTTPClient do
-  def get(url, query \\ nil)
-
-  def get(url, nil) do
-    simple_client() |> Tesla.get(url)
-  end
-
-  def get(url, query) when is_map(query) do
-    simple_client() |> Tesla.get(url, query: query)
+  def get(url, opts \\ []) do
+    simple_client() |> Tesla.get(url, opts)
   end
 
   def post(url, body, headers \\ [])
@@ -30,24 +24,18 @@ defmodule CloudHub.HTTPClient do
   end
 
   def simple_client() do
-    Tesla.client(
-      [
-        Tesla.Middleware.FollowRedirects,
-        Tesla.Middleware.KeepRequest
-      ],
-      {Tesla.Adapter.Finch, name: MyFinch, recv_timeout: 4_000}
-    )
+    Tesla.client([
+      Tesla.Middleware.FollowRedirects,
+      Tesla.Middleware.KeepRequest
+    ])
   end
 
   def form_client() do
-    Tesla.client(
-      [
-        Tesla.Middleware.FollowRedirects,
-        Tesla.Middleware.KeepRequest,
-        Tesla.Middleware.FormUrlencoded
-      ],
-      {Tesla.Adapter.Finch, name: MyFinch, recv_timeout: 4_000}
-    )
+    Tesla.client([
+      Tesla.Middleware.FollowRedirects,
+      Tesla.Middleware.KeepRequest,
+      Tesla.Middleware.FormUrlencoded
+    ])
   end
 
   def client() do

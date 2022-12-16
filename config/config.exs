@@ -54,6 +54,8 @@ config :mime, :types, %{
   "application/x-www-form-urlencoded" => ["x-www-form-urlencoded"]
 }
 
+config :tesla, adapter: {Tesla.Adapter.Finch, name: MyFinch, recv_timeout: 4_000}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

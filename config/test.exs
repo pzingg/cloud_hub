@@ -31,3 +31,6 @@ config :logger, level: :warn
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# HTTP response mocks
+config :tesla, adapter: Tesla.Mock

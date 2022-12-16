@@ -1,37 +1,37 @@
-defmodule Pleroma.Feed.WebSubControllerTest do
+defmodule Pleroma.Feed.RSSCloudControllerTest do
   use CloudHubWeb.ConnCase
 
-  require Logger
-
   setup do
-    {:ok, pid} = FakeServer.start(:my_server)
-    subscriber_port = FakeServer.port!(pid)
-
-    on_exit(fn ->
-      FakeServer.stop(pid)
-    end)
-
-    [subscriber_pid: pid, subscriber_port: subscriber_port]
+    [subscriber_port: Enum.random(7000..8000)]
   end
 
   test "subscribing to a specific topic with diff_domain = true", %{
     conn: conn,
-    subscriber_pid: subscriber_pid,
     subscriber_port: subscriber_port
   } do
-    :ok =
-      FakeServer.put_route(
-        subscriber_pid,
-        "/callback",
-        fn %{
-             query: %{
-               "url" => _url,
-               "challenge" => challenge
-             }
-           } ->
-          FakeServer.Response.ok(challenge)
+    callback_url = "http://localhost:#{subscriber_port}/callback"
+
+    Tesla.Mock.mock(fn
+      %{method: :get, url: ^callback_url, query: query} ->
+        query = Map.new(query)
+
+        if Map.has_key?(query, "challenge") && Map.has_key?(query, "url") do
+          %Tesla.Env{
+            status: 200,
+            body: Map.get(query, "challenge"),
+            headers: [{"content-type", "text/plain"}]
+          }
+        else
+          %Tesla.Env{status: 400, body: "no challenge", headers: [{"content-type", "text/plain"}]}
         end
-      )
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
+    end)
 
     params = %{
       "protocol" => "http-rest",
@@ -49,14 +49,21 @@ defmodule Pleroma.Feed.WebSubControllerTest do
 
   test "subscribing to a specific topic with diff_domain = false", %{
     conn: conn,
-    subscriber_pid: subscriber_pid,
     subscriber_port: subscriber_port
   } do
-    :ok =
-      FakeServer.put_route(subscriber_pid, "/callback", fn
-        %FakeServer.Request{method: "POST", body: _body} ->
-          FakeServer.Response.ok("ok")
-      end)
+    callback_url = "http://localhost:#{subscriber_port}/callback"
+
+    Tesla.Mock.mock(fn
+      %{method: :post, url: ^callback_url} ->
+        %Tesla.Env{status: 200, body: "ok", headers: [{"content-type", "text/plain"}]}
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
+    end)
 
     params = %{
       "protocol" => "http-rest",
@@ -73,10 +80,21 @@ defmodule Pleroma.Feed.WebSubControllerTest do
 
   test "subscribing with an invalid response", %{
     conn: conn,
-    subscriber_pid: subscriber_pid,
     subscriber_port: subscriber_port
   } do
-    :ok = FakeServer.put_route(subscriber_pid, "/callback", FakeServer.Response.ok("whut?"))
+    callback_url = "http://localhost:#{subscriber_port}/callback"
+
+    Tesla.Mock.mock(fn
+      %{method: :get, url: ^callback_url} ->
+        %Tesla.Env{status: 200, body: "wrong answer", headers: [{"content-type", "text/plain"}]}
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
+    end)
 
     params = %{
       "protocol" => "http-rest",

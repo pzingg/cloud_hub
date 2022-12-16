@@ -33,7 +33,6 @@ defmodule CloudHub.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
-      {:fake_server, "~> 2.1", only: :test},
       {:floki, "~> 0.34", only: :test},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
       {:esbuild, "~> 0.2", runtime: Mix.env() == :dev},

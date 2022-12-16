@@ -2,6 +2,8 @@ defmodule Pleroma.Feed.RSSCloudTest do
   use CloudHub.DataCase
   use Oban.Testing, repo: CloudHub.Repo
 
+  require Logger
+
   alias CloudHub.HTTPClient
 
   @html_body """
@@ -48,19 +50,15 @@ defmodule Pleroma.Feed.RSSCloudTest do
     This subscriber will include only the parameters hub.mode, hub.topic and hub.callback. The hub should deliver notifications with no signature.
     """
 
-    setup [:setup_html_publisher, :setup_subscriber]
+    setup :setup_html_publisher
 
     test "100 - Typical subscriber request", %{
-      subscriber_pid: subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
-      publisher_url: publisher_url
+      subscriber_url: callback_url,
+      publisher_url: topic_url
     } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
-      {:ok, update} = Updates.publish(topic_url)
+      assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "text/html; charset=UTF-8"
 
       assert_enqueued(
@@ -76,10 +74,10 @@ defmodule Pleroma.Feed.RSSCloudTest do
 
       assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :feed_updates)
 
-      assert hits(publisher_pid) == 1
-      assert hits(subscriber_pid) == 2
-      {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
+      assert TeslaMockAgent.hits(:publisher) == 1
+      assert TeslaMockAgent.hits(:subscriber) == 2
 
+      [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
       assert HTTPClient.get_header(publish.headers, "content-type") ==
@@ -87,21 +85,17 @@ defmodule Pleroma.Feed.RSSCloudTest do
     end
 
     test "does not get publish if already unsubscribed", %{
-      subscriber_pid: subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
-      publisher_url: publisher_url
+      subscriber_url: callback_url,
+      publisher_url: topic_url
     } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
       {:ok, _} = Subscriptions.unsubscribe(topic_url, callback_url)
 
       # Quick sleep
       :timer.sleep(1000)
 
-      {:ok, update} = Updates.publish(topic_url)
+      assert {:ok, update} = Updates.publish(topic_url)
 
       refute_enqueued(
         worker: Pleroma.Workers.DispatchFeedUpdateWorker,
@@ -113,10 +107,10 @@ defmodule Pleroma.Feed.RSSCloudTest do
         }
       )
 
-      assert hits(publisher_pid) == 1
+      assert TeslaMockAgent.hits(:publisher) == 1
 
       # Note that :rsscloud does not notify on unsubscription
-      assert hits(subscriber_pid) == 1
+      assert TeslaMockAgent.hits(:subscriber) == 1
     end
   end
 
@@ -145,19 +139,15 @@ defmodule Pleroma.Feed.RSSCloudTest do
     This test will check whether your hub can handle delivering content that is not HTML or XML. The content at the topic URL of this test is plaintext.
     """
 
-    setup [:setup_text_publisher, :setup_subscriber]
+    setup :setup_text_publisher
 
     test "105 - Plaintext content", %{
-      subscriber_pid: subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
-      publisher_url: publisher_url
+      subscriber_url: callback_url,
+      publisher_url: topic_url
     } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
-      {:ok, update} = Updates.publish(topic_url)
+      assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "text/plain"
 
       assert_enqueued(
@@ -173,10 +163,10 @@ defmodule Pleroma.Feed.RSSCloudTest do
 
       assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :feed_updates)
 
-      assert hits(publisher_pid) == 1
-      assert hits(subscriber_pid) == 2
-      {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
+      assert TeslaMockAgent.hits(:publisher) == 1
+      assert TeslaMockAgent.hits(:subscriber) == 2
 
+      [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
       assert HTTPClient.get_header(publish.headers, "content-type") ==
@@ -189,19 +179,15 @@ defmodule Pleroma.Feed.RSSCloudTest do
     This test will check whether your hub can handle delivering content that is not HTML or XML. The content at the topic URL of this test is JSON.
     """
 
-    setup [:setup_json_publisher, :setup_subscriber]
+    setup :setup_json_publisher
 
     test "106 - JSON content", %{
-      subscriber_pid: subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
-      publisher_url: publisher_url
+      subscriber_url: callback_url,
+      publisher_url: topic_url
     } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
-      {:ok, update} = Updates.publish(topic_url)
+      assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "application/json"
 
       assert_enqueued(
@@ -217,10 +203,10 @@ defmodule Pleroma.Feed.RSSCloudTest do
 
       assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :feed_updates)
 
-      assert hits(publisher_pid) == 1
-      assert hits(subscriber_pid) == 2
-      {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
+      assert TeslaMockAgent.hits(:publisher) == 1
+      assert TeslaMockAgent.hits(:subscriber) == 2
 
+      [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
       assert HTTPClient.get_header(publish.headers, "content-type") ==
@@ -233,19 +219,15 @@ defmodule Pleroma.Feed.RSSCloudTest do
     This test will check whether your hub can handle delivering content that is not HTML or XML. The content at the topic URL of this test is JSON.
     """
 
-    setup [:setup_xml_publisher, :setup_subscriber]
+    setup :setup_xml_publisher
 
     test "XML content", %{
-      subscriber_pid: subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
-      publisher_url: publisher_url
+      subscriber_url: callback_url,
+      publisher_url: topic_url
     } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
-      {:ok, update} = Updates.publish(topic_url)
+      assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "application/rss+xml"
 
       assert_enqueued(
@@ -261,10 +243,10 @@ defmodule Pleroma.Feed.RSSCloudTest do
 
       assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :feed_updates)
 
-      assert hits(publisher_pid) == 1
-      assert hits(subscriber_pid) == 2
-      {:ok, [_challenge, publish]} = FakeServer.Instance.access_list(subscriber_pid)
+      assert TeslaMockAgent.hits(:publisher) == 1
+      assert TeslaMockAgent.hits(:subscriber) == 2
 
+      [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
       assert HTTPClient.get_header(publish.headers, "content-type") ==
@@ -277,19 +259,15 @@ defmodule Pleroma.Feed.RSSCloudTest do
     This test will check whether we can prune expired subscriptions.
     """
 
-    setup [:setup_xml_publisher, :setup_subscriber]
+    setup :setup_xml_publisher
 
-    test "Typical subscriber request", %{
-      subscriber_pid: _subscriber_pid,
-      subscriber_url: subscriber_url,
-      publisher_pid: _publisher_pid,
-      publisher_url: publisher_url
+    test "after typical subscriber request", %{
+      subscriber_url: callback_url,
+      publisher_url: topic_url
     } do
-      topic_url = publisher_url
-      callback_url = subscriber_url
-      {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
 
-      {:ok, update} = Updates.publish(topic_url)
+      assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "application/rss+xml"
 
       assert_enqueued(
@@ -318,127 +296,160 @@ defmodule Pleroma.Feed.RSSCloudTest do
         }
       )
 
-      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :prune_subscriptions)
+      assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :prune_feed_subscriptions)
       assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :feed_updates)
     end
   end
 
   def setup_html_publisher(_) do
-    {:ok, pid} = FakeServer.start(:publisher_server)
-    port = FakeServer.port!(pid)
+    publisher_url = "http://localhost/publisher/posts"
+    subscriber_url = "http://localhost/subscriber/callback"
 
-    on_exit(fn ->
-      FakeServer.stop(pid)
+    Tesla.Mock.mock(fn
+      %{url: ^publisher_url} = req ->
+        TeslaMockAgent.add_hit(:publisher, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: @html_body,
+          headers: [
+            {"content-type", "text/html; charset=UTF-8"}
+          ]
+        }
+
+      %{url: ^subscriber_url} = req ->
+        TeslaMockAgent.add_hit(:subscriber, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: "ok",
+          headers: [
+            {"content-type", "text/plain"}
+          ]
+        }
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
     end)
 
-    callback_path = "/posts"
-    publisher_url = "http://localhost:#{port}" <> callback_path
-
-    :ok =
-      FakeServer.put_route(pid, callback_path, fn _ ->
-        FakeServer.Response.ok(
-          @html_body,
-          %{
-            "Content-Type" => "text/html; charset=UTF-8"
-          }
-        )
-      end)
-
-    [publisher_pid: pid, publisher_url: publisher_url]
+    [publisher_url: publisher_url, subscriber_url: subscriber_url]
   end
 
   def setup_text_publisher(_) do
-    {:ok, pid} = FakeServer.start(:publisher_server)
-    port = FakeServer.port!(pid)
+    publisher_url = "http://localhost/publisher/posts"
+    subscriber_url = "http://localhost/subscriber/callback"
 
-    on_exit(fn ->
-      FakeServer.stop(pid)
+    Tesla.Mock.mock(fn
+      %{url: ^publisher_url} = req ->
+        TeslaMockAgent.add_hit(:publisher, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: @text_body,
+          headers: [
+            {"content-type", "text/plain"}
+          ]
+        }
+
+      %{url: ^subscriber_url} = req ->
+        TeslaMockAgent.add_hit(:subscriber, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: "ok",
+          headers: [
+            {"content-type", "text/plain"}
+          ]
+        }
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
     end)
 
-    callback_path = "/posts"
-    publisher_url = "http://localhost:#{port}" <> callback_path
-
-    :ok =
-      FakeServer.put_route(pid, callback_path, fn _ ->
-        FakeServer.Response.ok(
-          @text_body,
-          %{"Content-Type" => "text/plain"}
-        )
-      end)
-
-    [publisher_pid: pid, publisher_url: publisher_url]
+    [publisher_url: publisher_url, subscriber_url: subscriber_url]
   end
 
   def setup_json_publisher(_) do
-    {:ok, pid} = FakeServer.start(:publisher_server)
-    port = FakeServer.port!(pid)
+    publisher_url = "http://localhost/publisher/posts"
+    subscriber_url = "http://localhost/subscriber/callback"
 
-    on_exit(fn ->
-      FakeServer.stop(pid)
+    Tesla.Mock.mock(fn
+      %{url: ^publisher_url} = req ->
+        TeslaMockAgent.add_hit(:publisher, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: Jason.encode!(@json_body),
+          headers: [
+            {"content-type", "application/json"}
+          ]
+        }
+
+      %{url: ^subscriber_url} = req ->
+        TeslaMockAgent.add_hit(:subscriber, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: "ok",
+          headers: [
+            {"content-type", "text/plain"}
+          ]
+        }
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
     end)
 
-    callback_path = "/posts"
-    publisher_url = "http://localhost:#{port}" <> callback_path
-
-    :ok =
-      FakeServer.put_route(pid, callback_path, fn _ ->
-        FakeServer.Response.ok(
-          @json_body,
-          %{"Content-Type" => "application/json"}
-        )
-      end)
-
-    [publisher_pid: pid, publisher_url: publisher_url]
+    [publisher_url: publisher_url, subscriber_url: subscriber_url]
   end
 
   def setup_xml_publisher(_) do
-    {:ok, pid} = FakeServer.start(:publisher_server)
-    port = FakeServer.port!(pid)
+    publisher_url = "http://localhost/publisher/posts"
+    subscriber_url = "http://localhost/subscriber/callback"
 
-    on_exit(fn ->
-      FakeServer.stop(pid)
+    Tesla.Mock.mock(fn
+      %{url: ^publisher_url} = req ->
+        TeslaMockAgent.add_hit(:publisher, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: @xml_body,
+          headers: [
+            {"content-type", "application/rss+xml"}
+          ]
+        }
+
+      %{url: ^subscriber_url} = req ->
+        TeslaMockAgent.add_hit(:subscriber, req)
+
+        %Tesla.Env{
+          status: 200,
+          body: "ok",
+          headers: [
+            {"content-type", "text/plain"}
+          ]
+        }
+
+      _not_matched ->
+        %Tesla.Env{
+          status: 404,
+          body: "not found",
+          headers: [{"content-type", "text/plain"}]
+        }
     end)
 
-    callback_path = "/posts"
-    publisher_url = "http://localhost:#{port}" <> callback_path
-
-    :ok =
-      FakeServer.put_route(pid, callback_path, fn _ ->
-        FakeServer.Response.ok(
-          @xml_body,
-          %{"Content-Type" => "application/rss+xml"}
-        )
-      end)
-
-    [publisher_pid: pid, publisher_url: publisher_url]
-  end
-
-  def setup_subscriber(_) do
-    {:ok, pid} = FakeServer.start(:subscriber_server)
-    port = FakeServer.port!(pid)
-
-    on_exit(fn ->
-      FakeServer.stop(pid)
-    end)
-
-    callback_path = "/callback"
-    subscriber_url = "http://localhost:#{port}" <> callback_path
-
-    headers = %{"Content-Type" => "text/plain"}
-
-    :ok =
-      FakeServer.put_route(pid, callback_path, fn
-        %FakeServer.Request{} ->
-          FakeServer.Response.ok("ok", headers)
-      end)
-
-    [subscriber_pid: pid, subscriber_url: subscriber_url]
-  end
-
-  defp hits(subscriber_pid) do
-    case FakeServer.Instance.access_list(subscriber_pid) do
-      {:ok, access_list} -> length(access_list)
-      {:error, _reason} -> 0
-    end
+    [publisher_url: publisher_url, subscriber_url: subscriber_url]
   end
 end

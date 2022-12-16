@@ -2,53 +2,80 @@ defmodule Pleroma.Feed.UpdatesTest do
   use CloudHub.DataCase
   use Oban.Testing, repo: CloudHub.Repo
 
+  require Logger
+
   alias Pleroma.Feed.Updates
   alias Pleroma.Feed.Subscriptions
 
+  @html_body """
+  <!doctype html>
+  <html lang=en>
+    <head>
+      <meta charset=utf-8>
+      <title>blah</title>
+    </head>
+    <body>
+      <p>I'm the content</p>
+    </body>
+  </html>
+  """
+
   setup do
-    {:ok, pid} = FakeServer.start(:my_server)
-    subscriber_port = FakeServer.port!(pid)
-
-    on_exit(fn ->
-      FakeServer.stop(pid)
-    end)
-
-    [subscriber_pid: pid, subscriber_url: "http://localhost:#{subscriber_port}"]
+    [subscriber_url: "http://localhost/subscriber/callback"]
   end
 
   describe "updates" do
-    #   test "publishing update dispatches jobs", %{
-    #     subscriber_pid: subscriber_pid,
-    #     subscriber_url: subscriber_url
-    #   } do
-    #     :ok =
-    #       FakeServer.put_route(subscriber_pid, "/cb", fn %{
-    #                                                        query: %{
-    #                                                          "hub.challenge" => challenge
-    #                                                        }
-    #                                                      } ->
-    #         FakeServer.Response.ok(challenge)
-    #       end)
+    test "publishing update dispatches jobs", %{
+      subscriber_url: callback_url
+    } do
+      topic_url = "https://localhost/publisher/topic/123"
+      headers = [{"content-type", "text/plain"}]
 
-    #     topic_url = "https://topic/123"
-    #     callback_url = subscriber_url <> "/cb"
-    #     {:ok, _} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      Tesla.Mock.mock(fn
+        %{url: ^topic_url} = req ->
+          TeslaMockAgent.add_hit(:publisher, req)
 
-    #     {:ok, update} = Updates.publish(topic_url)
+          %Tesla.Env{
+            status: 200,
+            body: @html_body,
+            headers: [
+              {"content-type", "text/html; charset=UTF-8"}
+            ]
+          }
 
-    #     assert_enqueued(
-    #       worker: Pleroma.Workers.DispatchFeedUpdateWorker,
-    #       args: %{update_id: update.id, callback_url: callback_url}
-    #     )
+        %{method: :get, url: ^callback_url, query: query} = req ->
+          TeslaMockAgent.add_hit(:subscriber, req)
 
-    #     assert hits(subscriber_pid) == 1
-    #   end
-  end
+          query = Map.new(query)
 
-  defp hits(subscriber_pid) do
-    case FakeServer.Instance.access_list(subscriber_pid) do
-      {:ok, access_list} -> length(access_list)
-      {:error, _reason} -> 0
+          if Map.has_key?(query, "hub.challenge") do
+            %Tesla.Env{
+              status: 200,
+              body: Map.get(query, "hub.challenge"),
+              headers: headers
+            }
+          else
+            %Tesla.Env{status: 400, body: "no challenge", headers: headers}
+          end
+
+        not_matched ->
+          Logger.error("not matched #{not_matched.url}")
+
+          %Tesla.Env{
+            status: 404,
+            body: "not found",
+            headers: headers
+          }
+      end)
+
+      assert {:ok, _} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      assert {:ok, update} = Updates.publish(topic_url)
+
+      assert TeslaMockAgent.hits(:subscriber) == 1
+
+      assert [job] = all_enqueued(worker: Pleroma.Workers.DispatchFeedUpdateWorker)
+      assert job.args["update_id"] == update.id
+      assert job.args["callback_url"] == callback_url
     end
   end
 end
