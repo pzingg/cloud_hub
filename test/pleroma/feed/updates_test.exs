@@ -7,6 +7,7 @@ defmodule Pleroma.Feed.UpdatesTest do
   alias Pleroma.Feed.Updates
   alias Pleroma.Feed.Subscriptions
 
+  @content_type_text_plain [{"content-type", "text/plain"}]
   @html_body """
   <!doctype html>
   <html lang=en>
@@ -29,7 +30,6 @@ defmodule Pleroma.Feed.UpdatesTest do
       subscriber_url: callback_url
     } do
       topic_url = "https://localhost/publisher/topic/123"
-      headers = [{"content-type", "text/plain"}]
 
       Tesla.Mock.mock(fn
         %{url: ^topic_url} = req ->
@@ -52,10 +52,10 @@ defmodule Pleroma.Feed.UpdatesTest do
             %Tesla.Env{
               status: 200,
               body: Map.get(query, "hub.challenge"),
-              headers: headers
+              headers: @content_type_text_plain
             }
           else
-            %Tesla.Env{status: 400, body: "no challenge", headers: headers}
+            %Tesla.Env{status: 400, body: "no challenge", headers: @content_type_text_plain}
           end
 
         not_matched ->
@@ -64,7 +64,7 @@ defmodule Pleroma.Feed.UpdatesTest do
           %Tesla.Env{
             status: 404,
             body: "not found",
-            headers: headers
+            headers: @content_type_text_plain
           }
       end)
 

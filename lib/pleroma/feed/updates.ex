@@ -6,18 +6,20 @@ defmodule Pleroma.Feed.Updates do
 
   import Ecto.Query, warn: false
   alias CloudHub.Repo
-  alias CloudHub.HTTPClient
+  alias Pleroma.HTTP
 
   alias Pleroma.Feed.Subscriptions
   alias Pleroma.Feed.SubscriptionUpdate
   alias Pleroma.Feed.Topic
   alias Pleroma.Feed.Update
 
+  @content_type_text_plain [{"content-type", "text/plain"}]
+
   def publish(topic_url) do
     case Subscriptions.get_topic_by_url(topic_url) do
       # Get all active subscriptions and publish the update to them
       %Topic{} = topic ->
-        case HTTPClient.get(topic.url) do
+        case HTTP.get(topic.url) do
           {:ok, %Tesla.Env{status: code, body: body, headers: headers}}
           when code >= 200 and code < 300 ->
             with {:ok, update} <- create_update(topic, body, headers) do
@@ -67,7 +69,7 @@ defmodule Pleroma.Feed.Updates do
     }
     |> Update.changeset(%{
       body: body,
-      headers: headers,
+      headers: @content_type_text_plain,
       content_type: get_content_type_header(headers),
       links: get_link_headers(headers),
       hash: :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
@@ -104,7 +106,7 @@ defmodule Pleroma.Feed.Updates do
   end
 
   defp get_content_type_header(headers) do
-    HTTPClient.get_header(headers, "content-type", "application/octet-stream")
+    HTTP.get_header(headers, "content-type", "application/octet-stream")
   end
 
   defp get_link_headers(headers) do

@@ -4,8 +4,9 @@ defmodule Pleroma.Feed.WebSubTest do
 
   require Logger
 
-  alias CloudHub.HTTPClient
+  alias Pleroma.HTTP
 
+  @content_type_text_plain [{"content-type", "text/plain"}]
   @html_body """
   <!doctype html>
   <html lang=en>
@@ -142,7 +143,7 @@ defmodule Pleroma.Feed.WebSubTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == @html_body
 
-      assert HTTPClient.get_header(publish.headers, "x-hub-signature") ==
+      assert HTTP.get_header(publish.headers, "x-hub-signature") ==
                "sha256=9d63c6c06dca350aaa6955f9e4017b801fc56b4a904f2e4dab68652b6abfda4c"
     end
   end
@@ -200,9 +201,9 @@ defmodule Pleroma.Feed.WebSubTest do
 
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == @text_body
-      assert HTTPClient.get_header(publish.headers, "content-type") == "text/plain"
+      assert HTTP.get_header(publish.headers, "content-type") == "text/plain"
 
-      assert HTTPClient.get_header(publish.headers, "link") ==
+      assert HTTP.get_header(publish.headers, "link") ==
                "<#{topic_url}>; rel=self, <https://cloud_hub.com/hub>; rel=hub"
     end
   end
@@ -240,9 +241,9 @@ defmodule Pleroma.Feed.WebSubTest do
 
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert Jason.decode!(publish.body) == @json_body
-      assert HTTPClient.get_header(publish.headers, "content-type") == "application/json"
+      assert HTTP.get_header(publish.headers, "content-type") == "application/json"
 
-      assert HTTPClient.get_header(publish.headers, "link") ==
+      assert HTTP.get_header(publish.headers, "link") ==
                "<#{topic_url}>; rel=self, <https://cloud_hub.com/hub>; rel=hub"
     end
   end
@@ -250,10 +251,6 @@ defmodule Pleroma.Feed.WebSubTest do
   def setup_html_publisher(_) do
     publisher_url = "http://localhost/publisher/posts"
     subscriber_url = "http://localhost/subscriber/callback"
-
-    headers = [
-      {"content-type", "text/plain"}
-    ]
 
     Tesla.Mock.mock(fn
       %{url: ^publisher_url} = req ->
@@ -275,10 +272,10 @@ defmodule Pleroma.Feed.WebSubTest do
           %Tesla.Env{
             status: 200,
             body: Map.get(query, "hub.challenge"),
-            headers: headers
+            headers: @content_type_text_plain
           }
         else
-          %Tesla.Env{status: 400, body: "no challenge", headers: headers}
+          %Tesla.Env{status: 400, body: "no challenge", headers: @content_type_text_plain}
         end
 
       %{url: ^subscriber_url, method: :post} = req ->
@@ -287,7 +284,7 @@ defmodule Pleroma.Feed.WebSubTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: headers
+          headers: @content_type_text_plain
         }
 
       not_matched ->
@@ -307,10 +304,6 @@ defmodule Pleroma.Feed.WebSubTest do
     publisher_url = "http://localhost/publisher/posts"
     subscriber_url = "http://localhost/subscriber/callback"
 
-    headers = [
-      {"content-type", "text/plain"}
-    ]
-
     Tesla.Mock.mock(fn
       %{url: ^publisher_url} = req ->
         TeslaMockAgent.add_hit(:publisher, req)
@@ -318,9 +311,7 @@ defmodule Pleroma.Feed.WebSubTest do
         %Tesla.Env{
           status: 200,
           body: @text_body,
-          headers: [
-            {"content-type", "text/plain"}
-          ]
+          headers: @content_type_text_plain
         }
 
       %{url: ^subscriber_url, method: :get, query: query} = req ->
@@ -331,10 +322,10 @@ defmodule Pleroma.Feed.WebSubTest do
           %Tesla.Env{
             status: 200,
             body: Map.get(query, "hub.challenge"),
-            headers: headers
+            headers: @content_type_text_plain
           }
         else
-          %Tesla.Env{status: 400, body: "no challenge", headers: headers}
+          %Tesla.Env{status: 400, body: "no challenge", headers: @content_type_text_plain}
         end
 
       %{url: ^subscriber_url, method: :post} = req ->
@@ -343,7 +334,7 @@ defmodule Pleroma.Feed.WebSubTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: headers
+          headers: @content_type_text_plain
         }
 
       not_matched ->
@@ -362,10 +353,6 @@ defmodule Pleroma.Feed.WebSubTest do
   def setup_json_publisher(_) do
     publisher_url = "http://localhost/publisher/posts"
     subscriber_url = "http://localhost/subscriber/callback"
-
-    headers = [
-      {"content-type", "text/plain"}
-    ]
 
     Tesla.Mock.mock(fn
       %{url: ^publisher_url} = req ->
@@ -387,10 +374,10 @@ defmodule Pleroma.Feed.WebSubTest do
           %Tesla.Env{
             status: 200,
             body: Map.get(query, "hub.challenge"),
-            headers: headers
+            headers: @content_type_text_plain
           }
         else
-          %Tesla.Env{status: 400, body: "no challenge", headers: headers}
+          %Tesla.Env{status: 400, body: "no challenge", headers: @content_type_text_plain}
         end
 
       %{url: ^subscriber_url, method: :post} = req ->
@@ -399,7 +386,7 @@ defmodule Pleroma.Feed.WebSubTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: headers
+          headers: @content_type_text_plain
         }
 
       not_matched ->
@@ -418,10 +405,6 @@ defmodule Pleroma.Feed.WebSubTest do
   def setup_xml_publisher(_) do
     publisher_url = "http://localhost/publisher/posts"
     subscriber_url = "http://localhost/subscriber/callback"
-
-    headers = [
-      {"content-type", "text/plain"}
-    ]
 
     Tesla.Mock.mock(fn
       %{url: ^publisher_url} = req ->
@@ -443,10 +426,10 @@ defmodule Pleroma.Feed.WebSubTest do
           %Tesla.Env{
             status: 200,
             body: Map.get(query, "hub.challenge"),
-            headers: headers
+            headers: @content_type_text_plain
           }
         else
-          %Tesla.Env{status: 400, body: "no challenge", headers: headers}
+          %Tesla.Env{status: 400, body: "no challenge", headers: @content_type_text_plain}
         end
 
       %{url: ^subscriber_url, method: :post} = req ->
@@ -455,7 +438,7 @@ defmodule Pleroma.Feed.WebSubTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: headers
+          headers: @content_type_text_plain
         }
 
       not_matched ->

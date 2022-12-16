@@ -4,8 +4,9 @@ defmodule Pleroma.Feed.RSSCloudTest do
 
   require Logger
 
-  alias CloudHub.HTTPClient
+  alias Pleroma.HTTP
 
+  @content_type_text_plain [{"content-type", "text/plain"}]
   @html_body """
   <!doctype html>
   <html lang=en>
@@ -80,7 +81,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTPClient.get_header(publish.headers, "content-type") ==
+      assert HTTP.get_header(publish.headers, "content-type") ==
                "application/x-www-form-urlencoded"
     end
 
@@ -169,7 +170,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTPClient.get_header(publish.headers, "content-type") ==
+      assert HTTP.get_header(publish.headers, "content-type") ==
                "application/x-www-form-urlencoded"
     end
   end
@@ -209,7 +210,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTPClient.get_header(publish.headers, "content-type") ==
+      assert HTTP.get_header(publish.headers, "content-type") ==
                "application/x-www-form-urlencoded"
     end
   end
@@ -249,7 +250,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
       [_challenge, publish] = TeslaMockAgent.access_list(:subscriber)
       assert publish.body == "url=" <> URI.encode_www_form(topic_url)
 
-      assert HTTPClient.get_header(publish.headers, "content-type") ==
+      assert HTTP.get_header(publish.headers, "content-type") ==
                "application/x-www-form-urlencoded"
     end
   end
@@ -323,16 +324,14 @@ defmodule Pleroma.Feed.RSSCloudTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: [
-            {"content-type", "text/plain"}
-          ]
+          headers: @content_type_text_plain
         }
 
       _not_matched ->
         %Tesla.Env{
           status: 404,
           body: "not found",
-          headers: [{"content-type", "text/plain"}]
+          headers: @content_type_text_plain
         }
     end)
 
@@ -350,9 +349,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
         %Tesla.Env{
           status: 200,
           body: @text_body,
-          headers: [
-            {"content-type", "text/plain"}
-          ]
+          headers: @content_type_text_plain
         }
 
       %{url: ^subscriber_url} = req ->
@@ -361,16 +358,14 @@ defmodule Pleroma.Feed.RSSCloudTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: [
-            {"content-type", "text/plain"}
-          ]
+          headers: @content_type_text_plain
         }
 
       _not_matched ->
         %Tesla.Env{
           status: 404,
           body: "not found",
-          headers: [{"content-type", "text/plain"}]
+          headers: @content_type_text_plain
         }
     end)
 
@@ -399,16 +394,14 @@ defmodule Pleroma.Feed.RSSCloudTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: [
-            {"content-type", "text/plain"}
-          ]
+          headers: @content_type_text_plain
         }
 
       _not_matched ->
         %Tesla.Env{
           status: 404,
           body: "not found",
-          headers: [{"content-type", "text/plain"}]
+          headers: @content_type_text_plain
         }
     end)
 
@@ -437,16 +430,14 @@ defmodule Pleroma.Feed.RSSCloudTest do
         %Tesla.Env{
           status: 200,
           body: "ok",
-          headers: [
-            {"content-type", "text/plain"}
-          ]
+          headers: @content_type_text_plain
         }
 
       _not_matched ->
         %Tesla.Env{
           status: 404,
           body: "not found",
-          headers: [{"content-type", "text/plain"}]
+          headers: @content_type_text_plain
         }
     end)
 

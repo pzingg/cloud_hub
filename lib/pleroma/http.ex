@@ -1,6 +1,13 @@
-defmodule CloudHub.HTTPClient do
-  def get(url, opts \\ []) do
-    simple_client() |> Tesla.get(url, opts)
+defmodule Pleroma.HTTP do
+
+  def get(url, headers \\ [], options \\ [])
+
+  def get(url, [], options) do
+    simple_client() |> Tesla.get(url, options)
+  end
+
+  def get(url, headers, options) when is_list(headers) do
+    simple_client() |> Tesla.get(url, Keyword.put(options, :headers, headers))
   end
 
   def post(url, body, headers \\ [])

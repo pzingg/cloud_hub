@@ -2,7 +2,7 @@ defmodule Pleroma.Workers.DispatchFeedUpdateWorker do
   use Oban.Worker, queue: :feed_updates, max_attempts: 3
   require Logger
 
-  alias CloudHub.HTTPClient
+  alias Pleroma.HTTP
 
   alias Pleroma.Feed.Update
   alias Pleroma.Feed.Updates
@@ -50,7 +50,7 @@ defmodule Pleroma.Workers.DispatchFeedUpdateWorker do
         headers
       end
 
-    case HTTPClient.post(callback_url, update.body, headers) do
+    case HTTP.post(callback_url, update.body, headers) do
       {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
         Logger.debug("WebSub got OK response from #{callback_url}")
         {:ok, code}
@@ -70,7 +70,7 @@ defmodule Pleroma.Workers.DispatchFeedUpdateWorker do
   defp perform_request(:rsscloud, callback_url, topic_url, _update, _secret) do
     params = %{url: topic_url}
 
-    case HTTPClient.post_form(callback_url, params) do
+    case HTTP.post_form(callback_url, params) do
       {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
         Logger.debug("RSSCloud got OK response from #{callback_url}")
         {:ok, code}

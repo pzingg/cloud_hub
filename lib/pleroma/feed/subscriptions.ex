@@ -6,7 +6,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
   import Ecto.Query, warn: false
   alias CloudHub.Repo
-  alias CloudHub.HTTPClient
+  alias Pleroma.HTTP
 
   alias Pleroma.Feed.Subscription
   alias Pleroma.Feed.SubscriptionUpdate
@@ -138,7 +138,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
     callback_url = to_string(callback_uri)
 
-    case HTTPClient.get(callback_url, query: query) do
+    case HTTP.get(callback_url, [], query: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body matches our challenge
         if challenge != String.trim(body) do
@@ -173,7 +173,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
     callback_url = to_string(callback_uri)
 
-    case HTTPClient.get(callback_url, query: query) do
+    case HTTP.get(callback_url, [], query: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body contains our challenge
         if String.contains?(body, challenge) do
@@ -191,7 +191,7 @@ defmodule Pleroma.Feed.Subscriptions do
     callback_url = to_string(callback_uri)
     body = %{url: topic.url}
 
-    case HTTPClient.post_form(callback_url, body) do
+    case HTTP.post_form(callback_url, body) do
       {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
         {:ok, :success}
 
@@ -235,7 +235,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
     callback_url = to_string(callback_uri)
 
-    case HTTPClient.get(callback_url, query: query) do
+    case HTTP.get(callback_url, [], query: query) do
       {:ok, %Tesla.Env{}} ->
         :ok
 
@@ -282,7 +282,7 @@ defmodule Pleroma.Feed.Subscriptions do
       final_url = to_string(callback_uri)
 
       # We don't especially care about a response on this one
-      case HTTPClient.get(final_url, query) do
+      case HTTP.get(final_url, [], query: query) do
         {:ok, %Tesla.Env{}} ->
           :ok
 
