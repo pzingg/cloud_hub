@@ -100,7 +100,7 @@ defmodule Pleroma.Workers.DispatchFeedUpdateWorker do
           code
 
         _ ->
-          nil
+          599
       end
 
     # Will fail if either update at update_id or subscription at subscription_id is gone

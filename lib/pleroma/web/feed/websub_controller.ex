@@ -4,6 +4,9 @@ defmodule Pleroma.Web.Feed.WebSubController do
   alias Pleroma.Feed.Subscriptions
   alias Pleroma.Feed.Updates
 
+  # By default WebSub subscriptions expire after 10 days
+  @subscription_lease_seconds 864_000
+
   def action(conn, _params) do
     conn
     |> handle_request(conn.params)
@@ -13,7 +16,7 @@ defmodule Pleroma.Web.Feed.WebSubController do
          conn,
          %{"hub.mode" => "subscribe", "hub.topic" => topic, "hub.callback" => callback} = params
        ) do
-    lease_seconds = Map.get(params, "hub.lease_seconds", 864_000)
+    lease_seconds = Map.get(params, "hub.lease_seconds", @subscription_lease_seconds)
     secret = Map.get(params, "hub.secret")
 
     Subscriptions.subscribe(:websub, topic, callback, lease_seconds, secret: secret)

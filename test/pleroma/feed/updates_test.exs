@@ -7,6 +7,7 @@ defmodule Pleroma.Feed.UpdatesTest do
   alias Pleroma.Feed.Updates
   alias Pleroma.Feed.Subscriptions
 
+  @subscription_lease_seconds 5
   @content_type_text_plain [{"content-type", "text/plain"}]
   @html_body """
   <!doctype html>
@@ -68,7 +69,14 @@ defmodule Pleroma.Feed.UpdatesTest do
           }
       end)
 
-      assert {:ok, _} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      assert {:ok, _} =
+               Subscriptions.subscribe(
+                 :websub,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
+
       assert {:ok, update} = Updates.publish(topic_url)
 
       assert TeslaMockAgent.hits(:subscriber) == 1
