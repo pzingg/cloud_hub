@@ -4,8 +4,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
 
   require Logger
 
-  alias Pleroma.HTTP
-
+  @subscription_lease_seconds 90_000
   @content_type_text_plain [{"content-type", "text/plain"}]
   @html_body """
   <!doctype html>
@@ -57,7 +56,13 @@ defmodule Pleroma.Feed.RSSCloudTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :rsscloud,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "text/html; charset=UTF-8"
@@ -89,7 +94,13 @@ defmodule Pleroma.Feed.RSSCloudTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :rsscloud,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       {:ok, _} = Subscriptions.unsubscribe(topic_url, callback_url)
 
@@ -146,7 +157,13 @@ defmodule Pleroma.Feed.RSSCloudTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :rsscloud,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "text/plain"
@@ -186,7 +203,13 @@ defmodule Pleroma.Feed.RSSCloudTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :rsscloud,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "application/json"
@@ -226,7 +249,13 @@ defmodule Pleroma.Feed.RSSCloudTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :rsscloud,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "application/rss+xml"
@@ -266,7 +295,13 @@ defmodule Pleroma.Feed.RSSCloudTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:rsscloud, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :rsscloud,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
       assert update.content_type == "application/rss+xml"
@@ -283,8 +318,8 @@ defmodule Pleroma.Feed.RSSCloudTest do
       )
 
       expiring =
-        DateTime.utc_now()
-        |> DateTime.add(30 * 24 * 3_600, :second)
+        Subscriptions.from_now(1_000_000)
+        |> DateTime.from_naive!("Etc/UTC")
         |> DateTime.to_iso8601()
 
       Pleroma.Workers.PruneFeedSubscriptionsWorker.new(%{expiring: expiring})

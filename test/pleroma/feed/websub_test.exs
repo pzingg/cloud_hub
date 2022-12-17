@@ -4,8 +4,8 @@ defmodule Pleroma.Feed.WebSubTest do
 
   require Logger
 
-  alias Pleroma.HTTP
-
+  # WebSub subcriptions expire after 10 days
+  @subscription_lease_seconds 864_000
   @content_type_text_plain [{"content-type", "text/plain"}]
   @html_body """
   <!doctype html>
@@ -57,7 +57,13 @@ defmodule Pleroma.Feed.WebSubTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :websub,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
 
@@ -84,7 +90,13 @@ defmodule Pleroma.Feed.WebSubTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :websub,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       {:ok, _} = Subscriptions.unsubscribe(topic_url, callback_url)
 
@@ -120,7 +132,9 @@ defmodule Pleroma.Feed.WebSubTest do
       publisher_url: topic_url
     } do
       {:ok, subscription} =
-        Subscriptions.subscribe(:websub, topic_url, callback_url, 864_000, secret: "some_secret")
+        Subscriptions.subscribe(:websub, topic_url, callback_url, @subscription_lease_seconds,
+          secret: "some_secret"
+        )
 
       assert {:ok, update} = Updates.publish(topic_url)
 
@@ -179,7 +193,13 @@ defmodule Pleroma.Feed.WebSubTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :websub,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
 
@@ -219,7 +239,13 @@ defmodule Pleroma.Feed.WebSubTest do
       subscriber_url: callback_url,
       publisher_url: topic_url
     } do
-      assert {:ok, subscription} = Subscriptions.subscribe(:websub, topic_url, callback_url)
+      assert {:ok, subscription} =
+               Subscriptions.subscribe(
+                 :websub,
+                 topic_url,
+                 callback_url,
+                 @subscription_lease_seconds
+               )
 
       assert {:ok, update} = Updates.publish(topic_url)
 

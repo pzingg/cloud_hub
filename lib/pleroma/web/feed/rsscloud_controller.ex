@@ -5,6 +5,9 @@ defmodule Pleroma.Web.Feed.RSSCloudController do
 
   alias Pleroma.Feed.Subscriptions
 
+  # RSSCloud subscriptions expire after 25 hours (no options!)
+  @subscription_lease_seconds 90_000
+
   def ping(conn, _params) do
     Logger.error("ping not implemented")
 
@@ -35,7 +38,9 @@ defmodule Pleroma.Web.Feed.RSSCloudController do
         {good, bad} =
           topics
           |> Enum.map(fn topic ->
-            Subscriptions.subscribe(:rsscloud, topic, callback, 90_000, diff_domain: diff_domain)
+            Subscriptions.subscribe(:rsscloud, topic, callback, @subscription_lease_seconds,
+              diff_domain: diff_domain
+            )
           end)
           |> Enum.split_with(fn res -> elem(res, 0) == :ok end)
 

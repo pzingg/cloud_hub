@@ -11,12 +11,12 @@ defmodule Pleroma.Feed.Subscriptions do
   alias Pleroma.Feed.Subscription
   alias Pleroma.Feed.Topic
 
-  def subscribe(api, topic_url, callback_url, lease_seconds \\ 864_000, opts \\ []) do
+  def subscribe(api, topic_url, callback_url, subscription_lease_seconds, opts \\ []) do
     with {:ok, _} <- validate_url(topic_url),
          {:ok, _callback_uri} <- validate_url(callback_url),
          {:ok, topic} <- find_or_create_topic(topic_url),
-         :ok <- validate_subscription(api, topic, callback_url, lease_seconds, opts) do
-      find_or_create_subscription(api, topic, callback_url, lease_seconds, opts)
+         :ok <- validate_subscription(api, topic, callback_url, subscription_lease_seconds, opts) do
+      find_or_create_subscription(api, topic, callback_url, subscription_lease_seconds, opts)
     else
       {:subscribe_validation_error, reason} ->
         # WebSub must notify callback on failure. Ignore return value.
@@ -100,19 +100,24 @@ defmodule Pleroma.Feed.Subscriptions do
     Repo.get_by(Subscription, api: api, topic_id: topic.id, callback_url: callback_url)
   end
 
-  def find_or_create_subscription(api, %Topic{} = topic, callback_url, lease_seconds, opts) do
+  def find_or_create_subscription(
+        api,
+        %Topic{} = topic,
+        callback_url,
+        subscription_lease_seconds,
+        opts
+      ) do
     # BACKPORT api: api
+    lease_seconds = convert_lease_seconds(subscription_lease_seconds)
+
     case Repo.get_by(Subscription, api: api, topic_id: topic.id, callback_url: callback_url) do
       %Subscription{} = subscription ->
-        lease_seconds = convert_lease_seconds(lease_seconds)
-        expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
-
         subscription
         |> Subscription.changeset(%{
-          secret: Keyword.get(opts, :secret),
+          lease_seconds: lease_seconds,
+          expires_at: from_now(lease_seconds),
           diff_domain: Keyword.get(opts, :diff_domain, false),
-          expires_at: expires_at,
-          lease_seconds: lease_seconds
+          secret: Keyword.get(opts, :secret)
         })
         |> Repo.update()
 
@@ -129,7 +134,7 @@ defmodule Pleroma.Feed.Subscriptions do
         :websub,
         %Topic{} = topic,
         callback_url,
-        lease_seconds,
+        subscription_lease_seconds,
         _opts
       ) do
     challenge = :crypto.strong_rand_bytes(32) |> Base.url_encode64() |> binary_part(0, 32)
@@ -138,7 +143,7 @@ defmodule Pleroma.Feed.Subscriptions do
       {"hub.mode", "subscribe"},
       {"hub.topic", topic.url},
       {"hub.challenge", challenge},
-      {"hub.lease_seconds", lease_seconds}
+      {"hub.lease_seconds", to_string(subscription_lease_seconds)}
     ]
 
     case HTTP.get(callback_url, [], query: query) do
@@ -246,30 +251,36 @@ defmodule Pleroma.Feed.Subscriptions do
     end
   end
 
-  def create_subscription(api, %Topic{} = topic, callback_url, lease_seconds, opts) do
-    lease_seconds = convert_lease_seconds(lease_seconds)
-    expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
-
+  def create_subscription(api, %Topic{} = topic, callback_url, subscription_lease_seconds, opts) do
+    lease_seconds = convert_lease_seconds(subscription_lease_seconds)
     # BACKPORT
-    %Subscription{
-      topic_id: topic.id
-    }
-    |> Subscription.changeset(%{
-      api: api,
-      callback_url: callback_url,
-      lease_seconds: lease_seconds,
-      expires_at: expires_at,
-      diff_domain: Keyword.get(opts, :diff_domain, false),
-      secret: Keyword.get(opts, :secret)
-    })
-    |> Repo.insert()
+    expires_at =
+      %Subscription{
+        topic_id: topic.id
+      }
+      |> Subscription.changeset(%{
+        api: api,
+        callback_url: callback_url,
+        lease_seconds: lease_seconds,
+        expires_at: from_now(lease_seconds),
+        diff_domain: Keyword.get(opts, :diff_domain, false),
+        secret: Keyword.get(opts, :secret)
+      })
+      |> Repo.insert()
   end
+
+  defp convert_lease_seconds(seconds) when is_integer(seconds), do: seconds
 
   defp convert_lease_seconds(seconds) when is_binary(seconds) do
-    String.to_integer(seconds)
-  end
+    case String.trim(seconds) |> Integer.parse() do
+      {seconds, ""} ->
+        seconds
 
-  defp convert_lease_seconds(seconds), do: seconds
+      _ ->
+        Logger.error("Invalid lease value. not an integer: '#{seconds}'")
+        0
+    end
+  end
 
   def deny_subscription(:websub, callback_url, topic_url, reason) do
     # If (and when) the subscription is denied, the hub MUST inform the subscriber by sending an HTTP [RFC7231]
@@ -321,7 +332,9 @@ defmodule Pleroma.Feed.Subscriptions do
     |> Repo.all()
   end
 
-  def delete_subscription(subscription, now \\ nil) do
+  @spec delete_subscription(Subscription.t(), non_neg_integer(), NaiveDateTime.t() | nil) ::
+          {non_neg_integer(), non_neg_integer(), [integer()]} | {:error, term()}
+  def delete_subscription(subscription, topic_lease_seconds, now \\ nil) do
     now = now || NaiveDateTime.utc_now()
 
     Repo.transaction(fn ->
@@ -329,7 +342,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
       case Repo.delete(subscription) do
         {:ok, _} ->
-          {n_topics, topic_ids} = update_topic_expirations([topic_id], now)
+          {n_topics, topic_ids} = update_topic_expirations([topic_id], topic_lease_seconds, now)
           {1, n_topics, topic_ids}
 
         _ ->
@@ -343,7 +356,9 @@ defmodule Pleroma.Feed.Subscriptions do
   end
 
   # BACKPORT
-  def delete_all_inactive_subscriptions(now) do
+  @spec delete_all_inactive_subscriptions(non_neg_integer(), NaiveDateTime.t() | nil) ::
+          {non_neg_integer(), non_neg_integer(), [integer()]} | {:error, term()}
+  def delete_all_inactive_subscriptions(topic_lease_seconds, now \\ nil) do
     Repo.transaction(fn ->
       # Cascades to delete all SubscriptionUpdates as well
       {n_subs, topic_ids} =
@@ -354,7 +369,7 @@ defmodule Pleroma.Feed.Subscriptions do
         |> Repo.delete_all()
 
       # Update those topics who now don't have a subscription
-      {n_topics, topic_ids} = update_topic_expirations(topic_ids, now)
+      {n_topics, topic_ids} = update_topic_expirations(topic_ids, topic_lease_seconds, now)
 
       {n_subs, n_topics, topic_ids}
     end)
@@ -364,17 +379,49 @@ defmodule Pleroma.Feed.Subscriptions do
     end
   end
 
-  def update_topic_expirations(topic_ids, now \\ nil) do
+  def list_inactive_topics(now) do
+    from(t in Topic,
+      where:
+        t.expires_at < ^now and
+          fragment("NOT EXISTS (SELECT * FROM feed_subscriptions s WHERE s.topic_id = ?)", t.id)
+    )
+    |> Repo.all()
+  end
+
+  @spec delete_all_inactive_topics(NaiveDateTime.t() | nil) :: {non_neg_integer(), [integer()]}
+  def delete_all_inactive_topics(now) do
     now = now || NaiveDateTime.utc_now()
-    lease_seconds = 6 * 3_600
+
+    from(t in Topic,
+      where:
+        t.expires_at < ^now and
+          fragment("NOT EXISTS (SELECT * FROM feed_subscriptions s WHERE s.topic_id = ?)", t.id)
+    )
+    |> Repo.delete_all()
+  end
+
+  @spec update_topic_expirations([integer()], non_neg_integer(), NaiveDateTime.t() | nil) ::
+          {non_neg_integer(), [integer()]}
+  def update_topic_expirations(topic_ids, topic_lease_seconds, now \\ nil) do
+    now = now || NaiveDateTime.utc_now()
+    lease_seconds = convert_lease_seconds(topic_lease_seconds)
     expires_at = NaiveDateTime.add(now, lease_seconds, :second)
 
     from(t in Topic,
       select: t.id,
-      where: not exists(from(s in Subscription, where: s.topic_id in ^topic_ids)),
-      update: [set: [updated_at: fragment("NOW()"), expires_at: ^expires_at]]
+      where:
+        not exists(
+          from(s in Subscription,
+            where: s.topic_id in ^topic_ids
+          )
+        ),
+      update: [set: [updated_at: ^now, expires_at: ^expires_at]]
     )
     |> Repo.update_all([])
+  end
+
+  def from_now(seconds) do
+    NaiveDateTime.utc_now() |> NaiveDateTime.add(seconds, :second)
   end
 
   defp validate_url(url) when is_binary(url) do

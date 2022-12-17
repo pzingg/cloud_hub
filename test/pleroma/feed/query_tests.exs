@@ -10,7 +10,8 @@ defmodule Pleroma.Feed.RSSCloudTest do
   alias Pleroma.Feed.SubscriptionUpdate
   alias Pleroma.Feed.Topic
 
-  @lease_seconds 1
+  @subscription_lease_seconds 1
+  @topic_lease_seconds 5
 
   test "delete_all subscriptions cascades" do
     %{topics: _, subscriptions: subscriptions} = build_data()
@@ -41,7 +42,9 @@ defmodule Pleroma.Feed.RSSCloudTest do
       DateTime.utc_now()
       |> DateTime.add(60, :second)
 
-    assert {4, 2, _} = Subscriptions.delete_all_inactive_subscriptions(expiring)
+    assert {4, 2, _} =
+             Subscriptions.delete_all_inactive_subscriptions(@topic_lease_seconds, expiring)
+
     assert 0 == SubscriptionUpdate |> Repo.aggregate(:count, :id)
   end
 
@@ -61,16 +64,31 @@ defmodule Pleroma.Feed.RSSCloudTest do
         0..i
         |> Enum.map(fn j ->
           Enum.at(subscriptions, j)
-          |> Subscriptions.delete_subscription(now)
+          |> Subscriptions.delete_subscription(@topic_lease_seconds, now)
         end)
 
-        %Topic{url: url, expires_at: expires_at} = Subscriptions.get_topic_by_url(topic_url)
+        %Topic{expires_at: expires_at} = Subscriptions.get_topic_by_url(topic_url)
         expires_at
       end)
 
     assert NaiveDateTime.compare(topic1_exp, ~N[2040-01-01 00:00:00]) == :gt
     # After removing all subs in topic2, topic2 will expire soon!
     assert NaiveDateTime.compare(topic2_exp, ~N[2040-01-01 00:00:00]) == :lt
+  end
+
+  test "prunes topics after removing all subscriptions" do
+    %{topics: _, subscriptions: _} = build_data()
+
+    expiring = Subscriptions.from_now(2 * @subscription_lease_seconds)
+
+    assert {4, 2, topic_ids} =
+             Subscriptions.delete_all_inactive_subscriptions(@topic_lease_seconds, expiring)
+
+    expiring = NaiveDateTime.add(expiring, 2 * @topic_lease_seconds, :second)
+    topics_will_expire = Subscriptions.list_inactive_topics(expiring)
+    assert Enum.count(topics_will_expire) == 2
+
+    assert {2, _} = Subscriptions.delete_all_inactive_topics(expiring)
   end
 
   def build_data() do
@@ -83,7 +101,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
         :websub,
         topic1,
         "http://subscriber/sub1",
-        @lease_seconds,
+        @subscription_lease_seconds,
         []
       )
 
@@ -92,7 +110,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
         :websub,
         topic2,
         "http://subscriber/sub1",
-        @lease_seconds,
+        @subscription_lease_seconds,
         []
       )
 
@@ -101,7 +119,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
         :websub,
         topic1,
         "http://subscriber/sub2",
-        @lease_seconds,
+        @subscription_lease_seconds,
         []
       )
 
@@ -110,7 +128,7 @@ defmodule Pleroma.Feed.RSSCloudTest do
         :websub,
         topic2,
         "http://subscriber/sub2",
-        @lease_seconds,
+        @subscription_lease_seconds,
         []
       )
 

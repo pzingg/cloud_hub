@@ -61,7 +61,8 @@ defmodule Pleroma.Feed.Updates do
     end
   end
 
-  def create_update(%Topic{} = topic, %Tesla.Env{body: body, headers: headers} = env) when is_binary(body) do
+  def create_update(%Topic{} = topic, %Tesla.Env{body: body, headers: headers} = env)
+      when is_binary(body) do
     content_type = Tesla.get_header(env, "content-type") || "application/octet-stream"
 
     # BACKPORT
@@ -108,7 +109,7 @@ defmodule Pleroma.Feed.Updates do
 
   def count_30min_updates do
     now = NaiveDateTime.utc_now()
-    time_ago = NaiveDateTime.add(now, -1800)
+    time_ago = NaiveDateTime.add(now, -1_800, :second)
 
     Repo.one(
       from u in Update,
@@ -119,7 +120,7 @@ defmodule Pleroma.Feed.Updates do
 
   def count_30min_subscription_updates do
     now = NaiveDateTime.utc_now()
-    time_ago = NaiveDateTime.add(now, -1800)
+    time_ago = NaiveDateTime.add(now, -1_800, :second)
 
     Repo.one(
       from u in SubscriptionUpdate,
