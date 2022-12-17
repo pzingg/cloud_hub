@@ -2,9 +2,6 @@ defmodule WebSubHub.UpdatesTest do
   use WebSubHub.DataCase
   use Oban.Testing, repo: WebSubHub.Repo
 
-  alias WebSubHub.Updates
-  alias WebSubHub.Subscriptions
-
   setup do
     {:ok, pid} = FakeServer.start(:my_server)
     subscriber_port = FakeServer.port!(pid)

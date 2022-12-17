@@ -64,7 +64,7 @@ defmodule WebSubHub.Updates do
 
   def create_update(%Topic{} = topic, body, headers) when is_binary(body) do
     %Update{
-      topic: topic
+      topic_id: topic.id
     }
     |> Update.changeset(%{
       body: body,

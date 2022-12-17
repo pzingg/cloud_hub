@@ -4,16 +4,24 @@ defmodule WebSubHub.SubscriptionsFixtures do
   entities via the `WebSubHub.Subscriptions` context.
   """
 
+  alias WebSubHub.Repo
+  alias WebSubHub.Subscriptions.Subscription
+  alias WebSubHub.Subscriptions.Topic
+
   @doc """
   Generate a topic.
   """
   def topic_fixture(attrs \\ %{}) do
-    {:ok, topic} =
+    attrs =
       attrs
       |> Enum.into(%{
         url: "some url"
       })
-      |> WebSubHub.Subscriptions.create_topic()
+
+    {:ok, topic} =
+      %Topic{}
+      |> Topic.changeset(attrs)
+      |> Repo.insert()
 
     topic
   end
@@ -22,15 +30,22 @@ defmodule WebSubHub.SubscriptionsFixtures do
   Generate a subscription.
   """
   def subscription_fixture(attrs \\ %{}) do
-    {:ok, subscription} =
+    topic = topic_fixture(attrs)
+
+    attrs =
       attrs
       |> Enum.into(%{
+        api: :websub,
         callback_url: "some callback_url",
         lease_seconds: 42,
         secret: "some secret",
-        topic_id: 42
+        topic_id: topic.id
       })
-      |> WebSubHub.Subscriptions.create_subscription()
+
+    {:ok, subscription} =
+      %Subscription{}
+      |> Subscription.changeset(attrs)
+      |> Repo.insert()
 
     subscription
   end

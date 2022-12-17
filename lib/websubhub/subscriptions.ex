@@ -11,8 +11,6 @@ defmodule WebSubHub.Subscriptions do
   alias WebSubHub.Subscriptions.Topic
   alias WebSubHub.Subscriptions.Subscription
 
-  alias WebSubHub.Updates.SubscriptionUpdate
-
   def subscribe(api, topic_url, callback_url, lease_seconds \\ 864_000, opts \\ []) do
     secret = Keyword.get(opts, :secret)
 
@@ -21,7 +19,7 @@ defmodule WebSubHub.Subscriptions do
          {:ok, topic} <- find_or_create_topic(topic_url),
          {:ok, :success} <-
            validate_subscription(api, topic, callback_uri, lease_seconds, opts) do
-      case Repo.get_by(Subscription, topic_id: topic.id, callback_url: callback_url) do
+      case Repo.get_by(Subscription, api: api, topic_id: topic.id, callback_url: callback_url) do
         %Subscription{} = subscription ->
           lease_seconds = convert_lease_seconds(lease_seconds)
           expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
@@ -76,7 +74,7 @@ defmodule WebSubHub.Subscriptions do
   """
   def final_unsubscribe(%Subscription{api: :websub} = subscription) do
     with {:ok, callback_uri} <- validate_url(subscription.callback_url) do
-      Subscriptions.validate_unsubscribe(subscription.topic, callback_uri)
+      validate_unsubscribe(subscription.topic, callback_uri)
     else
       _ ->
         {:unsubscribe_validation_error, "Subscription with improper callback_url"}
@@ -250,7 +248,7 @@ defmodule WebSubHub.Subscriptions do
     expires_at = NaiveDateTime.add(NaiveDateTime.utc_now(), lease_seconds, :second)
 
     %Subscription{
-      topic: topic
+      topic_id: topic.id
     }
     |> Subscription.changeset(%{
       api: api,
@@ -320,20 +318,22 @@ defmodule WebSubHub.Subscriptions do
   end
 
   def delete_all_inactive_subscriptions(now) do
-    {su_count, _} =
-      from(su in SubscriptionUpdate,
-        join: s in assoc(su, :subscription),
-        where: s.expires_at < ^now
-      )
-      |> Repo.delete_all()
+    Repo.transaction(fn ->
+      # Cascades to delete all SubscriptionUpdates as well
+      {n_subs, topic_ids} =
+        from(s in Subscription,
+          select: s.topic_id,
+          where: s.expires_at < ^now
+        )
+        |> Repo.delete_all()
 
-    {s_count, _} =
-      from(s in Subscription,
-        where: s.expires_at < ^now
-      )
-      |> Repo.delete_all()
-
-    {s_count, su_count}
+      # TODO Update those topics who now don't have a subscription
+      {n_subs, topic_ids}
+    end)
+    |> case do
+      {:ok, res} -> res
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp append_our_params(%URI{query: old_params} = uri, params) do

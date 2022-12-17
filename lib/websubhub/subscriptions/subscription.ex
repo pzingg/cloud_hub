@@ -19,11 +19,19 @@ defmodule WebSubHub.Subscriptions.Subscription do
   @doc false
   def changeset(subscription, attrs) do
     subscription
-    |> cast(attrs, [:topic_id, :api, :callback_url, :lease_seconds, :expires_at, :secret, :diff_domain])
+    |> cast(attrs, [
+      :topic_id,
+      :api,
+      :callback_url,
+      :lease_seconds,
+      :expires_at,
+      :secret,
+      :diff_domain
+    ])
     |> validate_required([:callback_url, :lease_seconds, :expires_at])
     |> validate_method()
     |> foreign_key_constraint(:topic_id)
-    |> unique_constraint([:topic_id, :callback_url])
+    |> unique_constraint([:api, :topic_id, :callback_url])
   end
 
   defp validate_method(changeset) do

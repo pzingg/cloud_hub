@@ -30,9 +30,13 @@ defmodule WebSubHub.Jobs.PruneSubscriptions do
 
     Logger.error("Unsubscribed #{Enum.count(ids_to_delete)} subscriptions")
 
-    {s_count, su_count} = Subscriptions.delete_all_inactive_subscriptions(expiring)
-    Logger.error("Deleted #{s_count} subscriptions")
-    Logger.error("Deleted #{su_count} subscription updates")
+    case Subscriptions.delete_all_inactive_subscriptions(expiring) do
+      {:error, reason} ->
+        Logger.error("Transaction error deleting subscriptions: #{reason}")
+
+      {count, _} ->
+        Logger.error("Deleted #{count} subscriptions")
+    end
 
     :ok
   end

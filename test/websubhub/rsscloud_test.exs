@@ -280,9 +280,9 @@ defmodule WebSubHub.RSSCloudTest do
     setup [:setup_xml_publisher, :setup_subscriber]
 
     test "Typical subscriber request", %{
-      subscriber_pid: subscriber_pid,
+      subscriber_pid: _subscriber_pid,
       subscriber_url: subscriber_url,
-      publisher_pid: publisher_pid,
+      publisher_pid: _publisher_pid,
       publisher_url: publisher_url
     } do
       topic_url = publisher_url
