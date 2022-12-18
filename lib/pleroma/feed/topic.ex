@@ -3,7 +3,6 @@ defmodule Pleroma.Feed.Topic do
   import Ecto.Changeset
 
   schema "feed_topics" do
-    # BACKPORT
     has_many :subscriptions, Pleroma.Feed.Subscription
     has_many :updates, Pleroma.Feed.Update
 

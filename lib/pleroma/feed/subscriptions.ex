@@ -107,7 +107,6 @@ defmodule Pleroma.Feed.Subscriptions do
         subscription_lease_seconds,
         opts
       ) do
-    # BACKPORT api: api
     lease_seconds = convert_lease_seconds(subscription_lease_seconds)
 
     case Repo.get_by(Subscription, api: api, topic_id: topic.id, callback_url: callback_url) do
@@ -253,20 +252,19 @@ defmodule Pleroma.Feed.Subscriptions do
 
   def create_subscription(api, %Topic{} = topic, callback_url, subscription_lease_seconds, opts) do
     lease_seconds = convert_lease_seconds(subscription_lease_seconds)
-    # BACKPORT
-    expires_at =
-      %Subscription{
-        topic_id: topic.id
-      }
-      |> Subscription.changeset(%{
-        api: api,
-        callback_url: callback_url,
-        lease_seconds: lease_seconds,
-        expires_at: from_now(lease_seconds),
-        diff_domain: Keyword.get(opts, :diff_domain, false),
-        secret: Keyword.get(opts, :secret)
-      })
-      |> Repo.insert()
+
+    %Subscription{
+      topic_id: topic.id
+    }
+    |> Subscription.changeset(%{
+      api: api,
+      callback_url: callback_url,
+      lease_seconds: lease_seconds,
+      expires_at: from_now(lease_seconds),
+      diff_domain: Keyword.get(opts, :diff_domain, false),
+      secret: Keyword.get(opts, :secret)
+    })
+    |> Repo.insert()
   end
 
   defp convert_lease_seconds(seconds) when is_integer(seconds), do: seconds
@@ -355,7 +353,6 @@ defmodule Pleroma.Feed.Subscriptions do
     end
   end
 
-  # BACKPORT
   @spec delete_all_inactive_subscriptions(non_neg_integer(), NaiveDateTime.t() | nil) ::
           {non_neg_integer(), non_neg_integer(), [integer()]} | {:error, term()}
   def delete_all_inactive_subscriptions(topic_lease_seconds, now \\ nil) do

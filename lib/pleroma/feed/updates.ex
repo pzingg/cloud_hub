@@ -65,7 +65,6 @@ defmodule Pleroma.Feed.Updates do
       when is_binary(body) do
     content_type = Tesla.get_header(env, "content-type") || "application/octet-stream"
 
-    # BACKPORT
     %Update{
       topic_id: topic.id
     }
