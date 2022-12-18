@@ -2,8 +2,6 @@ defmodule WebSubHub.Jobs.PruneSubscriptions do
   use Oban.Worker, queue: :prune_subscriptions, max_attempts: 1
   require Logger
 
-  alias WebSubHub.Repo
-
   alias WebSubHub.Subscriptions
   alias WebSubHub.Subscriptions.Subscription
 

@@ -5,7 +5,7 @@ defmodule WebSubHubWeb.RSSCloudController do
 
   alias WebSubHub.Subscriptions
 
-  def ping(conn, params) do
+  def ping(conn, _params) do
     Logger.error("ping not implemented")
 
     handle_response({:error, :unimplemented}, conn)
