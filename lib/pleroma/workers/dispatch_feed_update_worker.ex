@@ -68,9 +68,10 @@ defmodule Pleroma.Workers.DispatchFeedUpdateWorker do
   end
 
   defp perform_request(:rsscloud, callback_url, topic_url, _update, _secret) do
-    params = %{url: topic_url}
+    body = %{url: topic_url} |> URI.encode_query()
+    headers = [{"content-type", "application/x-www-form-urlencoded"}]
 
-    case HTTP.post_form(callback_url, params) do
+    case HTTP.post(callback_url, body, headers) do
       {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
         Logger.debug("RSSCloud got OK response from #{callback_url}")
         {:ok, code}

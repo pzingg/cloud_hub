@@ -145,7 +145,7 @@ defmodule Pleroma.Feed.Subscriptions do
       {"hub.lease_seconds", to_string(subscription_lease_seconds)}
     ]
 
-    case HTTP.get(callback_url, [], query: query) do
+    case HTTP.get(callback_url, [], params: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body matches our challenge
         if challenge != String.trim(body) do
@@ -178,7 +178,7 @@ defmodule Pleroma.Feed.Subscriptions do
       {"challenge", challenge}
     ]
 
-    case HTTP.get(callback_url, [], query: query) do
+    case HTTP.get(callback_url, [], params: query) do
       {:ok, %Tesla.Env{status: code, body: body}} when code >= 200 and code < 300 ->
         # Ensure the response body contains our challenge
         if String.contains?(body, challenge) do
@@ -194,9 +194,10 @@ defmodule Pleroma.Feed.Subscriptions do
 
   def validate_rsscloud_subscription(topic, callback_uri, false) do
     callback_url = to_string(callback_uri)
-    body = %{url: topic.url}
+    body = %{url: topic.url} |> URI.encode_query()
+    headers = [{"content-type", "application/x-www-form-urlencoded"}]
 
-    case HTTP.post_form(callback_url, body) do
+    case HTTP.post(callback_url, body, headers) do
       {:ok, %Tesla.Env{status: code}} when code >= 200 and code < 300 ->
         :ok
 
@@ -240,7 +241,7 @@ defmodule Pleroma.Feed.Subscriptions do
 
     callback_url = to_string(callback_uri)
 
-    case HTTP.get(callback_url, [], query: query) do
+    case HTTP.get(callback_url, [], params: query) do
       {:ok, %Tesla.Env{}} ->
         :ok
 
@@ -293,7 +294,7 @@ defmodule Pleroma.Feed.Subscriptions do
       final_url = to_string(callback_uri)
 
       # We don't especially care about a response on this one
-      case HTTP.get(final_url, [], query: query) do
+      case HTTP.get(final_url, [], params: query) do
         {:ok, %Tesla.Env{}} ->
           :ok
 

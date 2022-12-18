@@ -22,15 +22,10 @@ defmodule Pleroma.Feed.UpdatesTest do
   </html>
   """
 
-  setup do
-    [subscriber_url: "http://localhost/subscriber/callback"]
-  end
-
   describe "updates" do
-    test "publishing update dispatches jobs", %{
-      subscriber_url: callback_url
-    } do
+    test "publishing update dispatches jobs" do
       topic_url = "https://localhost/publisher/topic/123"
+      callback_url = "http://localhost/subscriber/callback"
 
       Tesla.Mock.mock(fn
         %{url: ^topic_url} = req ->

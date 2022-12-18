@@ -1,4 +1,4 @@
-defmodule Pleroma.Feed.RSSCloudTest do
+defmodule Pleroma.Feed.QueryTests do
   use CloudHub.DataCase
 
   require Logger

@@ -2,11 +2,17 @@ defmodule Pleroma.HTTP do
   def get(url, headers \\ [], options \\ [])
 
   def get(url, [], options) do
-    simple_client() |> Tesla.get(url, options)
+    {query, options} = Keyword.pop(options, :params, [])
+    client() |> Tesla.get(url, Keyword.put(options, :query, query))
   end
 
   def get(url, headers, options) when is_list(headers) do
-    simple_client() |> Tesla.get(url, Keyword.put(options, :headers, headers))
+    {query, options} =
+      options
+      |> Keyword.put(:headers, headers)
+      |> Keyword.pop(:params, [])
+
+    client() |> Tesla.get(url, Keyword.put(options, :query, query))
   end
 
   def post(url, body, headers \\ [])
@@ -19,36 +25,10 @@ defmodule Pleroma.HTTP do
     client() |> Tesla.post(url, body, headers: headers)
   end
 
-  def post_form(url, body, headers \\ [])
-
-  def post_form(url, body, []) do
-    form_client() |> Tesla.post(url, body)
-  end
-
-  def post_form(url, body, headers) when is_list(headers) do
-    form_client() |> Tesla.post(url, body, headers: headers)
-  end
-
-  defp simple_client() do
-    Tesla.client([
-      Tesla.Middleware.FollowRedirects,
-      Tesla.Middleware.KeepRequest
-    ])
-  end
-
-  defp form_client() do
-    Tesla.client([
-      Tesla.Middleware.FollowRedirects,
-      Tesla.Middleware.KeepRequest,
-      Tesla.Middleware.FormUrlencoded
-    ])
-  end
-
   defp client() do
     Tesla.client([
       Tesla.Middleware.FollowRedirects,
-      Tesla.Middleware.KeepRequest,
-      Tesla.Middleware.JSON
+      Tesla.Middleware.KeepRequest
     ])
   end
 end
